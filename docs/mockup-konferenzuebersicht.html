@@ -1,0 +1,263 @@
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --font:'Inter','Segoe UI','Helvetica Neue',Arial,sans-serif;
+  --bg:#f5f4f0;--surface:#fff;--surface2:#fafaf8;
+  --border:#d3d1c7;--border2:#e8e6e0;
+  --text:#1a1a18;--text2:#3d3d3a;--text3:#5f5e5a;--text4:#888780;
+  --accent:#534AB7;--accent-bg:#EEEDFE;--accent-mid:#AFA9EC;--accent-dark:#3C3489;
+  --teal:#0F6E56;--teal-bg:#E1F5EE;
+}
+body{font-family:var(--font-sans,var(--font));background:var(--bg);color:var(--text);font-size:13px}
+.app{background:var(--bg);border-radius:10px;overflow:hidden;border:0.5px solid var(--border);display:flex;flex-direction:column}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:9px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0;font-family:var(--font-sans,var(--font))}
+.app-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;letter-spacing:-.01em}
+.app-title span{color:var(--accent)}
+.sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.field-group{display:flex;align-items:center;gap:7px}
+.field-label{font-size:11px;color:var(--text3);white-space:nowrap}
+select{font-size:12px;font-family:var(--font-sans,var(--font));padding:5px 26px 5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235f5e5a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;-webkit-appearance:none;appearance:none;color:var(--text);cursor:pointer}
+select:focus{outline:none;border-color:var(--accent)}
+.mode-tabs{display:flex}
+.mode-tab{font-size:11px;padding:5px 12px;border:1px solid var(--border);background:var(--bg);color:var(--text3);cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--font-sans,var(--font))}
+.mode-tab:first-child{border-radius:6px 0 0 6px}
+.mode-tab:last-child{border-radius:0 6px 6px 0;border-left:none}
+.mode-tab.active{background:var(--accent-bg);color:var(--accent-dark);border-color:var(--accent);font-weight:500}
+.spacer{flex:1}
+.icon-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-family:var(--font-sans,var(--font));padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.icon-btn:hover{background:var(--surface);color:var(--text);border-color:#888}
+.icon-btn svg{width:14px;height:14px;flex-shrink:0}
+.icon-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-dark)}
+.icon-btn.timer-on{background:var(--teal-bg);border-color:var(--teal);color:var(--teal)}
+.infobar{background:var(--surface2);border-bottom:1px solid var(--border2);padding:5px 16px;display:flex;align-items:center;gap:20px;flex-shrink:0;font-size:11px;color:var(--text3);font-family:var(--font-sans,var(--font))}
+.infobar b{color:var(--text2);font-weight:600}
+.timer-chip{margin-left:auto;font-size:12px;font-weight:600;color:var(--teal);background:var(--teal-bg);padding:2px 10px;border-radius:20px;display:none;font-variant-numeric:tabular-nums}
+.timer-chip.visible{display:block}
+.table-wrap{overflow:auto;max-height:480px}
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--font-sans,var(--font))}
+thead th{position:sticky;top:0;z-index:2;background:var(--surface);padding:8px;font-weight:600;font-size:11px;color:var(--text2);border-bottom:2px solid var(--border);white-space:nowrap;text-align:center;font-family:var(--font-sans,var(--font))}
+thead th.col-nr{width:38px;color:var(--text4);font-weight:400}
+thead th.col-name{text-align:left;width:175px;padding-left:16px}
+thead th.col-fach{width:48px}
+tbody tr{border-bottom:1px solid var(--border2);cursor:pointer;transition:background .08s}
+tbody tr:hover td{background:#f9f8f5}
+tbody tr.selected td{background:var(--accent-bg)}
+tbody tr.selected:hover td{background:#e5e3fc}
+td{padding:7px 8px;text-align:center;vertical-align:middle;color:var(--text);font-family:var(--font-sans,var(--font))}
+td.col-nr{color:var(--text4);font-size:11px}
+td.col-name{text-align:left;padding-left:16px;font-size:13px;white-space:nowrap;color:var(--text);font-weight:500}
+tbody tr.selected td.col-name{font-weight:600;color:var(--accent-dark)}
+tbody tr.selected td.col-nr{color:var(--accent-mid)}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:22px;border-radius:4px;font-size:11px;font-weight:600;padding:0 4px;font-family:var(--font-sans,var(--font))}
+.n1{background:#c6e8a8;color:#163d05}.n2{background:#dff2c4;color:#1e5209}
+.n3{background:#eae9e2;color:#2c2c2a}.n4{background:#f9e5c4;color:#4d2a00}
+.n5{background:#f8d8bb;color:#5c2800}.n6{background:#f5c8c8;color:#5c0f0f}
+.ns{background:#eae9e2;color:#5f5e5a;font-size:10px;font-weight:500}
+.nl{color:var(--text4);font-size:11px}
+.lupe-wrap{display:none;flex-direction:column;font-family:var(--font-sans,var(--font))}
+.lupe-header-bar{display:flex;align-items:center;gap:16px;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border2);flex-shrink:0}
+.lupe-nav{display:flex;gap:6px;margin-left:auto}
+.lupe-nav-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-size:16px;transition:all .15s;line-height:1;font-weight:500;font-family:var(--font-sans,var(--font))}
+.lupe-nav-btn:hover{background:var(--surface);color:var(--text);border-color:#888}
+.lupe-avatar{width:46px;height:46px;border-radius:50%;background:var(--accent-bg);color:var(--accent-dark);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lupe-name{font-size:16px;font-weight:600;color:var(--text);line-height:1.2}
+.lupe-meta{font-size:12px;color:var(--text3);margin-top:3px}
+.lupe-stats-row{display:flex;flex-shrink:0}
+.lupe-stat-box{flex:1;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border2);border-right:1px solid var(--border2);text-align:center}
+.lupe-stat-box:last-child{border-right:none}
+.lupe-stat-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.lupe-stat-val{font-size:22px;font-weight:700;color:var(--text)}
+.lupe-stat-val.gut{color:#163d05}
+.lupe-stat-val.warn{color:#5c2800}
+.lupe-grid-wrap{flex:1;overflow-y:auto;padding:20px}
+.lupe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.lupe-fach{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 14px 16px;display:flex;flex-direction:column;align-items:center;transition:border-color .15s}
+.lupe-fach:hover{border-color:var(--accent-mid)}
+.lupe-fach.nf-gut {border-left:3px solid #3B6D11}
+.lupe-fach.nf-ok  {border-left:3px solid #888780}
+.lupe-fach.nf-warn{border-left:3px solid #854F0B}
+.lupe-fach.nf-bad {border-left:3px solid #A32D2D}
+.lupe-fach-k{font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px}
+.lupe-fach-fn{font-size:12px;font-weight:500;color:var(--text3);margin-bottom:12px;text-align:center;line-height:1.3}
+.lupe-fach-note{font-size:36px;font-weight:700;line-height:1;margin-bottom:8px;color:var(--text)}
+.lupe-fach-note.nc-gut   {color:#163d05}
+.lupe-fach-note.nc-ok    {color:#2c2c2a}
+.lupe-fach-note.nc-warn  {color:#4d2a00}
+.lupe-fach-note.nc-bad   {color:#5c0f0f}
+.lupe-fach-note.nc-sonder{font-size:18px;color:var(--text3)}
+.lupe-fach-label{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.lupe-fach-label.lc-gut {background:#c6e8a8;color:#163d05}
+.lupe-fach-label.lc-ok  {background:#eae9e2;color:#2c2c2a}
+.lupe-fach-label.lc-warn{background:#f9e5c4;color:#4d2a00}
+.lupe-fach-label.lc-bad {background:#f5c8c8;color:#5c0f0f}
+.lupe-fach-label.lc-none{background:#eae9e2;color:#888780}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;border:1px solid var(--border);padding:28px 36px;text-align:center;min-width:270px;position:relative;font-family:var(--font-sans,var(--font))}
+.modal-label{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase}
+.timer-big{font-size:50px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.04em;line-height:1;margin-bottom:18px}
+.timer-big.running{color:var(--teal)}.timer-big.warn{color:#854F0B}
+.presets{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.preset{font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--text3);cursor:pointer;transition:all .15s;font-family:var(--font-sans,var(--font))}
+.preset:hover{background:var(--surface);color:var(--text)}
+.preset.active{background:var(--teal-bg);border-color:var(--teal);color:var(--teal)}
+.modal-btns{display:flex;gap:8px;justify-content:center}
+.mbtn{padding:7px 18px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:var(--font-sans,var(--font));cursor:pointer;font-weight:500;transition:all .15s}
+.mbtn:hover{background:var(--surface2)}
+.mbtn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mbtn.primary:hover{background:var(--accent-dark)}
+.mbtn.stop{background:#FCEBEB;color:#5c0f0f;border-color:#f5c8c8}
+.modal-close{position:absolute;top:10px;right:14px;font-size:20px;cursor:pointer;color:var(--text3);line-height:1;background:none;border:none;font-family:var(--font-sans,var(--font))}
+</style>
+
+<div class="app">
+<div class="topbar">
+  <span class="app-title">SVWS <span>Konferenz</span></span>
+  <div class="sep"></div>
+  <div class="field-group">
+    <span class="field-label">Klasse</span>
+    <select onchange="document.getElementById('ik').textContent=this.value.split(' ')[0]">
+      <option>Q1 – Qualifikationsphase 1</option>
+      <option>Q2 – Qualifikationsphase 2</option>
+      <option>EF – Einführungsphase</option>
+      <option>9a</option><option>9b</option><option>8a</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <div class="mode-tabs">
+    <div class="mode-tab active" onclick="this.parentNode.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">Klasse</div>
+    <div class="mode-tab" onclick="this.parentNode.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">Lerngruppe</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="lbtn" onclick="toggleLupe()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"/></svg>
+    Schülerlupe
+  </button>
+  <button class="icon-btn" id="tbtn" onclick="document.getElementById('tmod').classList.add('open');updateDisp()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="9" r="5.5"/><path d="M8 6v3l2 1.5"/><path d="M6 1.5h4M8 1.5v2"/></svg>
+    <span id="tbtn-lbl">Timer</span>
+  </button>
+</div>
+
+<div class="infobar">
+  <div>Klasse: <b id="ik">Q1</b></div>
+  <div>Schüler: <b>15</b></div>
+  <div>Fächer: <b>10</b></div>
+  <div>2024/25 · 2. Halbjahr</div>
+  <div class="timer-chip" id="tchip">00:00</div>
+</div>
+
+<div class="table-wrap" id="twrap">
+  <table>
+    <thead><tr>
+      <th class="col-nr">Nr.</th><th class="col-name">Name</th>
+      <th class="col-fach">D</th><th class="col-fach">M</th><th class="col-fach">E</th>
+      <th class="col-fach">F</th><th class="col-fach">Ek</th><th class="col-fach">Ge</th>
+      <th class="col-fach">Bi</th><th class="col-fach">Ch</th><th class="col-fach">Ph</th>
+      <th class="col-fach">Sp</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="lupe-wrap" id="lwrap">
+  <div class="lupe-header-bar">
+    <div class="lupe-avatar" id="lav"></div>
+    <div>
+      <div class="lupe-name" id="lname"></div>
+      <div class="lupe-meta" id="lmeta"></div>
+    </div>
+    <div class="lupe-nav">
+      <div class="lupe-nav-btn" onclick="navigate(-1)">↑</div>
+      <div class="lupe-nav-btn" onclick="navigate(1)">↓</div>
+    </div>
+  </div>
+  <div class="lupe-stats-row">
+    <div class="lupe-stat-box"><div class="lupe-stat-label">Ø Note</div><div class="lupe-stat-val" id="lavg">–</div></div>
+    <div class="lupe-stat-box"><div class="lupe-stat-label">Bewertet</div><div class="lupe-stat-val" id="lcnt">–</div></div>
+    <div class="lupe-stat-box"><div class="lupe-stat-label">Fehlstunden</div><div class="lupe-stat-val">0</div></div>
+    <div class="lupe-stat-box"><div class="lupe-stat-label">Unentschuldigt</div><div class="lupe-stat-val">0</div></div>
+    <div class="lupe-stat-box"><div class="lupe-stat-label">Mahnung</div><div class="lupe-stat-val" id="lmahn">–</div></div>
+  </div>
+  <div class="lupe-grid-wrap">
+    <div class="lupe-grid" id="lgrid"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="tmod" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('tmod').classList.remove('open')">×</button>
+    <div class="modal-label">Konferenztimer</div>
+    <div class="timer-big" id="tdisp">05:00</div>
+    <div class="presets">
+      <div class="preset" onclick="setPre(this,180)">3 min</div>
+      <div class="preset active" onclick="setPre(this,300)">5 min</div>
+      <div class="preset" onclick="setPre(this,600)">10 min</div>
+      <div class="preset" onclick="setPre(this,900)">15 min</div>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn" onclick="resetT()">Zurücksetzen</button>
+      <button class="mbtn primary" id="ssbtn" onclick="toggleT()">Starten</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const FA=[{k:'D',n:'Deutsch'},{k:'M',n:'Mathematik'},{k:'E',n:'Englisch'},{k:'F',n:'Französisch'},{k:'Ek',n:'Erdkunde'},{k:'Ge',n:'Geschichte'},{k:'Bi',n:'Biologie'},{k:'Ch',n:'Chemie'},{k:'Ph',n:'Physik'},{k:'Sp',n:'Sport'}];
+const ST=[
+  {name:'Braun, Jennifer',  no:['2-','3','2','4','3+','2','1','3-','4+','2'],  m:false},
+  {name:'Fischer, Lukas',   no:['5+','4','3-','','3','4-','2+','','3','4'],    m:true},
+  {name:'González, Maria',  no:['2','2+','1','3','2-','2','1+','2','2','1-'], m:false},
+  {name:'Hoffmann, Tim',    no:['3','5','4+','3+','','3','4','5-','','3-'],   m:true},
+  {name:'Klein, Sarah',     no:['1-','2','1','2-','2','1+','1','2+','1-','2'],m:false},
+  {name:'Krause, Felix',    no:['4','3+','','4-','5','4','3','','4','5+'],    m:false},
+  {name:'Lehmann, Anna',    no:['2+','3-','3','3','3-','2+','2','3','3+','2-'],m:false},
+  {name:'Müller, Jonas',    no:['NT','4','3+','4-','','4','5','4','3-','4+'],m:false},
+  {name:'Neumann, Lisa',    no:['3-','2','2+','2','3','3-','2','2-','2+','3'],m:false},
+  {name:'Peters, David',    no:['4+','','5-','3+','4','','4+','5','4','NE'], m:true},
+  {name:'Richter, Emma',    no:['2','3','2-','3-','2+','2','2-','3','2','2+'],m:false},
+  {name:'Schmidt, Paul',    no:['3+','4-','4','','3+','3','','4-','3','4'],  m:false},
+  {name:'Schröder, Nina',   no:['1+','2-','1','2','1','2-','1','2','1+','1-'],m:false},
+  {name:'Schulz, Ben',      no:['5','3+','4-','5+','','4','5-','3','','4+'], m:true},
+  {name:'Wagner, Leonie',   no:['2-','2+','3','2','3-','2','2+','2-','3','2'],m:false},
+];
+let sel=0,lupe=false;
+function ncls(n){if(!n)return'';const d=parseInt(n);if(isNaN(d))return'ns';return['','n1','n2','n3','n4','n5','n6'][Math.min(d,6)]||'ns'}
+function nb(n){return n?`<span class="badge ${ncls(n)}">${n}</span>`:`<span class="nl">–</span>`}
+function fachClasses(n){
+  if(!n)return{frame:'',note:'nc-sonder',label:'lc-none',text:'nicht erteilt'};
+  const d=parseInt(n);
+  if(isNaN(d))return{frame:'',note:'nc-sonder',label:'lc-none',text:n};
+  if(d<=2)return{frame:'nf-gut',note:'nc-gut',label:'lc-gut',text:d===1?'sehr gut':'gut'};
+  if(d<=3)return{frame:'nf-ok',note:'nc-ok',label:'lc-ok',text:'befriedigend'};
+  if(d<=4)return{frame:'nf-warn',note:'nc-warn',label:'lc-warn',text:'ausreichend'};
+  return{frame:'nf-bad',note:'nc-bad',label:'lc-bad',text:d===5?'mangelhaft':'ungenügend'};
+}
+function renderT(){document.getElementById('tbody').innerHTML=ST.map((s,i)=>`<tr class="${i===sel?'selected':''}" onclick="pick(${i})"><td class="col-nr">${i+1}</td><td class="col-name">${s.name}</td>${s.no.map(n=>`<td>${nb(n)}</td>`).join('')}</tr>`).join('')}
+function renderL(){
+  const s=ST[sel];const p=s.name.split(', ');
+  document.getElementById('lav').textContent=(p[1]?.[0]||'')+(p[0]?.[0]||'');
+  document.getElementById('lname').textContent=s.name;
+  document.getElementById('lmeta').textContent='Q1 · Schüler Nr. '+(sel+1)+' von '+ST.length;
+  const nums=s.no.filter(n=>n&&!isNaN(parseInt(n))).map(n=>parseInt(n));
+  const avg=nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:null;
+  const avgEl=document.getElementById('lavg');
+  avgEl.textContent=avg!==null?avg.toFixed(1):'–';
+  avgEl.className='lupe-stat-val'+(avg!==null&&avg>=4?' warn':avg!==null&&avg<=2?' gut':'');
+  document.getElementById('lcnt').textContent=s.no.filter(n=>n).length+' / '+FA.length;
+  const mahnEl=document.getElementById('lmahn');mahnEl.textContent=s.m?'Ja':'–';mahnEl.style.color=s.m?'#5c0f0f':'';
+  document.getElementById('lgrid').innerHTML=FA.map((f,i)=>{const n=s.no[i]||'';const c=fachClasses(n);return`<div class="lupe-fach ${c.frame}"><div class="lupe-fach-k">${f.k}</div><div class="lupe-fach-fn">${f.n}</div><div class="lupe-fach-note ${c.note}">${n||'–'}</div><div class="lupe-fach-label ${c.label}">${c.text}</div></div>`}).join('');
+}
+function pick(i){sel=i;document.querySelectorAll('tbody tr').forEach((r,j)=>r.classList.toggle('selected',j===i));if(lupe)renderL()}
+function navigate(dir){sel=Math.max(0,Math.min(ST.length-1,sel+dir));document.querySelectorAll('tbody tr').forEach((r,j)=>r.classList.toggle('selected',j===sel));renderL()}
+function toggleLupe(){lupe=!lupe;document.getElementById('lbtn').classList.toggle('active',lupe);document.getElementById('twrap').style.display=lupe?'none':'';const lw=document.getElementById('lwrap');lw.style.display=lupe?'flex':'none';lw.style.flexDirection='column';if(lupe)renderL()}
+let tTotal=300,tRem=300,tRun=false,tIv=null;
+function fmt(s){const m=Math.floor(Math.abs(s)/60).toString().padStart(2,'0');const sc=(Math.abs(s)%60).toString().padStart(2,'0');return(s<0?'-':'')+m+':'+sc}
+function updateDisp(){const t=fmt(tRem);document.getElementById('tdisp').textContent=t;document.getElementById('tdisp').className='timer-big'+(tRun?(tRem<=60?' warn':' running'):'');if(tRun||tRem!==tTotal){document.getElementById('tchip').textContent=t;document.getElementById('tchip').classList.add('visible');document.getElementById('tbtn-lbl').textContent=t}else{document.getElementById('tchip').classList.remove('visible');document.getElementById('tbtn-lbl').textContent='Timer'}}
+function toggleT(){tRun=!tRun;const b=document.getElementById('ssbtn');document.getElementById('tbtn').classList.toggle('timer-on',tRun);if(tRun){b.textContent='Pause';b.className='mbtn stop';tIv=setInterval(()=>{tRem--;if(tRem<=0){tRem=0;tRun=false;clearInterval(tIv);b.textContent='Starten';b.className='mbtn primary';document.getElementById('tbtn').classList.remove('timer-on')}updateDisp()},1000)}else{clearInterval(tIv);b.textContent='Weiter';b.className='mbtn primary'}}
+function resetT(){tRun=false;clearInterval(tIv);tRem=tTotal;document.getElementById('ssbtn').textContent='Starten';document.getElementById('ssbtn').className='mbtn primary';document.getElementById('tbtn').classList.remove('timer-on');updateDisp()}
+function setPre(el,s){document.querySelectorAll('.preset').forEach(p=>p.classList.remove('active'));el.classList.add('active');tTotal=s;tRem=s;if(tRun){tRun=false;clearInterval(tIv);document.getElementById('ssbtn').textContent='Starten';document.getElementById('ssbtn').className='mbtn primary';document.getElementById('tbtn').classList.remove('timer-on')}updateDisp()}
+renderT();
+</script>
