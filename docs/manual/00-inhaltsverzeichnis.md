@@ -1,11 +1,15 @@
+<img src="../assets/svws-konferenz-logo-slim.svg" alt="SVWS Logo (schmal)" style="float:left; margin-right:12px; height:60px">
+
+
+
 # Inhaltsverzeichnis
 
 [Startseite](../index.md) | [Einleitung](01-einleitung.md) | [Schnellstart](02-schnellstart.md)
 
 ## Benutzerhandbuch SVWS-Konferenzübersicht
 
-1. Einleitung
-2. Schnellstart
+1. [Einleitung](01-einleitung.md)
+2. [Schnellstart](02-schnellstart.md)
 3. Voraussetzungen
 4. Oberfläche im Überblick
 5. Daten laden
@@ -16,14 +20,6 @@
 10. Anhang
 
 ## Kapitelübersicht (geplant)
-
-### 1. Einleitung
-
-Ziel, Zielgruppe und Aufbau des Handbuchs.
-
-### 2. Schnellstart
-
-Anwendung öffnen, Daten laden, erste Orientierung.
 
 ### 3. Voraussetzungen
 

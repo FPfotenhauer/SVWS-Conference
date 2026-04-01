@@ -1,6 +1,6 @@
-# Benutzerhandbuch SVWS-Konferenzübersicht
-
 ![Logo SVWS-Konferenzübersicht](assets/svws-konferenz-logo.svg)
+
+# Benutzerhandbuch SVWS-Konferenzübersicht
 
 Willkommen beim Benutzerhandbuch der SVWS-Konferenzübersicht.
 
