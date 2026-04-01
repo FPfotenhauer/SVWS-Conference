@@ -58,6 +58,7 @@ export interface EnmFach {
   id: number
   kuerzel: string         // z.B. "D", "M", "E"
   kuerzelAnzeige: string  // Anzeigekürzel (kann abweichen)
+  bezeichnung?: string | null // Langbezeichnung, falls vom Server geliefert
   sortierung: number
   istFremdsprache: boolean
 }
@@ -207,7 +208,7 @@ export interface EnmExport {
   anzahlAbschnitte: number      // 2 = Halbjahre, 4 = Quartale
   aktuellerAbschnitt: number
   publicKey: string | null
-  lehrerID: number              // ID des eingeloggten Lehrers
+  lehrerID: unknown            // Vom Server uneinheitlich geliefert; aktuell im UI ungenutzt
   fehlstundenEingabe: boolean
   fehlstundenSIFachbezogen: boolean
   fehlstundenSIIFachbezogen: boolean

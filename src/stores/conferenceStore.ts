@@ -17,7 +17,97 @@ import type {
   KonferenzKlasse,
   KonferenzLerngruppe,
   KonferenzSchueler,
+  Notenkuerzel,
 } from '../types/enm'
+
+type ServerConnectionParams = {
+  baseUrl: string
+  schema: string
+  username: string
+  password: string
+  trustSelfSigned: boolean
+}
+
+type NoteChange = {
+  schuelerId: number
+  lerngruppeId: number
+  originalNote: Notenkuerzel | null
+  newNote: Notenkuerzel | null
+}
+
+function encodeBasicAuth(username: string, password: string): string {
+  const bytes = new TextEncoder().encode(`${username}:${password}`)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+}
+
+function buildEnmCandidateUrls(baseUrl: string, schema: string): string[] {
+  const normalized = /^https?:\/\//i.test(baseUrl)
+    ? baseUrl.trim().replace(/\/+$/, '')
+    : `https://${baseUrl.trim().replace(/\/+$/, '')}`
+  const encodedSchema = encodeURIComponent(schema)
+  return [
+    `${normalized}/db/${encodedSchema}/enm/v1/alle/gzip`,
+    `${normalized}/api/v1/schule/${encodedSchema}/export/enm`,
+    `${normalized}/api/v1/schule/export/enm?schema=${encodedSchema}`,
+    `${normalized}/api/v1/schule/export/enm`,
+  ]
+}
+
+function buildAliveUrl(baseUrl: string): string {
+  const normalized = /^https?:\/\//i.test(baseUrl)
+    ? baseUrl.trim().replace(/\/+$/, '')
+    : `https://${baseUrl.trim().replace(/\/+$/, '')}`
+  return `${normalized}/status/alive`
+}
+
+async function readResponseError(response: Response): Promise<string> {
+  const contentType = response.headers.get('Content-Type') ?? ''
+  if (contentType.includes('application/json')) {
+    const payload = await response.json() as { error?: string }
+    return payload.error ?? ''
+  }
+  return await response.text()
+}
+
+async function checkServerAlive(baseUrl: string, trustSelfSigned: boolean): Promise<void> {
+  let response: Response | null = null
+  let useDirectFallback = false
+
+  try {
+    response = await fetch('/api/svws/alive', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain, application/json;q=0.9, */*;q=0.8',
+      },
+      body: JSON.stringify({ baseUrl, trustSelfSigned }),
+    })
+  } catch {
+    useDirectFallback = true
+  }
+
+  if (!useDirectFallback && response && (response.status === 404 || response.status === 405)) {
+    useDirectFallback = true
+  }
+
+  if (useDirectFallback) {
+    response = await fetch(buildAliveUrl(baseUrl), {
+      headers: {
+        'Accept': 'text/plain, application/json;q=0.9, */*;q=0.8',
+      },
+    })
+  }
+
+  if (!response || !response.ok) {
+    const details = response ? await readResponseError(response) : ''
+    const status = response ? `${response.status} ${response.statusText}` : 'keine Antwort'
+    throw new Error(`SVWS-Server ist nicht erreichbar (/status/alive: ${status}${details ? ` - ${details}` : ''}).`)
+  }
+}
 
 export const useConferenceStore = defineStore('conference', () => {
   // ---------------------------------------------------------------------------
@@ -29,6 +119,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const selectedLerngruppeId = ref<number | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const noteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
 
   // ---------------------------------------------------------------------------
   // Lookup-Maps (intern, aus dem Export aufgebaut)
@@ -182,6 +273,63 @@ export const useConferenceStore = defineStore('conference', () => {
     }
   })
 
+  const hasNoteChanges = computed(() => noteChanges.value.size > 0)
+  const noteChangeCount = computed(() => noteChanges.value.size)
+
+  function getChangeKey(schuelerId: number, lerngruppeId: number): string {
+    return `${schuelerId}:${lerngruppeId}`
+  }
+
+  function getOriginalNote(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.note ?? null
+  }
+
+  function getNote(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
+    const key = getChangeKey(schuelerId, lerngruppeId)
+    if (noteChanges.value.has(key)) {
+      return noteChanges.value.get(key) ?? null
+    }
+    return getOriginalNote(schuelerId, lerngruppeId)
+  }
+
+  function updateNote(schuelerId: number, lerngruppeId: number, note: Notenkuerzel | null): void {
+    const key = getChangeKey(schuelerId, lerngruppeId)
+    const original = getOriginalNote(schuelerId, lerngruppeId)
+
+    if (original === note) {
+      noteChanges.value.delete(key)
+      return
+    }
+
+    noteChanges.value.set(key, note)
+  }
+
+  function isNoteChanged(schuelerId: number, lerngruppeId: number): boolean {
+    return noteChanges.value.has(getChangeKey(schuelerId, lerngruppeId))
+  }
+
+  function clearNoteChanges(): void {
+    noteChanges.value.clear()
+  }
+
+  function listNoteChanges(): NoteChange[] {
+    const changes: NoteChange[] = []
+    for (const [key, newNote] of noteChanges.value) {
+      const [schueler, lerngruppe] = key.split(':')
+      const schuelerId = Number(schueler)
+      const lerngruppeId = Number(lerngruppe)
+      changes.push({
+        schuelerId,
+        lerngruppeId,
+        originalNote: getOriginalNote(schuelerId, lerngruppeId),
+        newNote,
+      })
+    }
+    return changes
+  }
+
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
@@ -191,6 +339,7 @@ export const useConferenceStore = defineStore('conference', () => {
     error.value = null
     try {
       enmExport.value = await parseEnmGzip(file)
+      noteChanges.value.clear()
       // Erste Klasse vorauswählen
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -205,26 +354,72 @@ export const useConferenceStore = defineStore('conference', () => {
     }
   }
 
-  async function loadFromUrl(baseUrl: string, token: string): Promise<void> {
+  async function loadFromServer(params: ServerConnectionParams): Promise<void> {
     loading.value = true
     error.value = null
     try {
-      const url = `${baseUrl.replace(/\/$/, '')}/api/v1/schule/export/enm`
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/gzip',
-        },
-      })
+      await checkServerAlive(params.baseUrl, params.trustSelfSigned)
+
+      let response: Response | null = null
+      let useDirectFallback = false
+
+      try {
+        response = await fetch('/api/svws/enm', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/octet-stream, application/gzip;q=0.9',
+          },
+          body: JSON.stringify(params),
+        })
+      } catch {
+        useDirectFallback = true
+      }
+
+      if (!useDirectFallback && response && !response.ok && (response.status === 404 || response.status === 405)) {
+        useDirectFallback = true
+      }
+
+      if (useDirectFallback) {
+        const candidateUrls = buildEnmCandidateUrls(params.baseUrl, params.schema)
+        const authHeader = `Basic ${encodeBasicAuth(params.username, params.password)}`
+        let fallbackResponse: Response | null = null
+
+        for (const candidateUrl of candidateUrls) {
+          const directResponse = await fetch(candidateUrl, {
+            headers: {
+              'Authorization': authHeader,
+              'Accept': 'application/octet-stream, application/gzip;q=0.9',
+            },
+          })
+
+          fallbackResponse = directResponse
+          if (directResponse.ok || directResponse.status !== 404) {
+            break
+          }
+        }
+
+        if (!fallbackResponse) {
+          throw new Error('SVWS-Server nicht erreichbar.')
+        }
+
+        response = fallbackResponse
+      }
+
+      if (!response) {
+        throw new Error('Antwort vom Server konnte nicht gelesen werden.')
+      }
 
       if (!response.ok) {
+        const details = await readResponseError(response)
         throw new Error(
-          `Server antwortete mit Status ${response.status}: ${response.statusText}`
+          `Server antwortete mit Status ${response.status}: ${response.statusText}.${details ? ` ${details}` : ''}`.trim()
         )
       }
 
       const buffer = await response.arrayBuffer()
       enmExport.value = await parseEnmGzip(buffer)
+      noteChanges.value.clear()
 
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -253,6 +448,7 @@ export const useConferenceStore = defineStore('conference', () => {
     enmExport.value = null
     selectedKlasseId.value = null
     selectedLerngruppeId.value = null
+    noteChanges.value.clear()
     error.value = null
     loading.value = false
   }
@@ -274,11 +470,18 @@ export const useConferenceStore = defineStore('conference', () => {
     currentKlasse,
     currentLerngruppe,
     schulInfo,
+    hasNoteChanges,
+    noteChangeCount,
     // Actions
     loadFromFile,
-    loadFromUrl,
+    loadFromServer,
     selectKlasse,
     selectLerngruppe,
+    getNote,
+    updateNote,
+    isNoteChanged,
+    clearNoteChanges,
+    listNoteChanges,
     reset,
   }
 })

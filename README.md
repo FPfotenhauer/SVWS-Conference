@@ -40,12 +40,30 @@ npm run test:run    # Tests einmalig ausführen (ohne Watch)
 
 ### Online: REST-Abruf vom SVWS-Server
 
-Die App ruft automatisch den ENM-Export ab:
+Die App ruft den ENM-Export per BasicAuth ab.
+
+Verbindungsdaten in der Server-Kachel:
+
+- SVWS-Basis-URL
+- Schema
+- Benutzername
+- Passwort (darf leer sein)
+
+Der Abruf erfolgt gegen einen der folgenden Endpunkte (je nach SVWS-Konfiguration):
 
 ```
+GET {SVWS-Basis-URL}/db/{schema}/enm/v1/alle/gzip
+GET {SVWS-Basis-URL}/api/v1/schule/{schema}/export/enm
+GET {SVWS-Basis-URL}/api/v1/schule/export/enm?schema={schema}
 GET {SVWS-Basis-URL}/api/v1/schule/export/enm
-Authorization: Bearer {token}
+Accept: application/octet-stream
+Authorization: Basic base64({username}:{password})
 ```
+
+Hinweis zu selbstsignierten Zertifikaten:
+
+- In der Entwicklungsumgebung (`npm run dev`) kann die Option `Zertifikat vertrauen` gesetzt werden.
+- Im statischen/offline Build kann der Browser selbstsignierte Zertifikate nicht per App-Option umgehen.
 
 CORS-Konfiguration am SVWS-Server (Beispiel für nginx als Reverse Proxy):
 

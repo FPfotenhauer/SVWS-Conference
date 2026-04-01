@@ -12,10 +12,6 @@ function isObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val)
 }
 
-function hasKey<T extends object>(obj: T, key: string): boolean {
-  return key in obj
-}
-
 function requireArray(obj: Record<string, unknown>, key: string, context: string): void {
   if (!Array.isArray(obj[key])) {
     throw new TypeError(`${context}: Feld "${key}" muss ein Array sein, ist aber: ${typeof obj[key]}`)
@@ -34,6 +30,13 @@ function requireString(obj: Record<string, unknown>, key: string, context: strin
   }
 }
 
+function requireStringOrNumber(obj: Record<string, unknown>, key: string, context: string): void {
+  const valueType = typeof obj[key]
+  if (valueType !== 'string' && valueType !== 'number') {
+    throw new TypeError(`${context}: Feld "${key}" muss ein String oder eine Zahl sein, ist aber: ${valueType}`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Type Guard
 // ---------------------------------------------------------------------------
@@ -46,12 +49,14 @@ export function isEnmExport(obj: unknown): obj is EnmExport {
     if (!Array.isArray(obj[key])) return false
   }
 
-  const requiredNumbers = ['enmRevision', 'schuljahr', 'anzahlAbschnitte', 'aktuellerAbschnitt', 'lehrerID']
+  const requiredNumbers = ['enmRevision', 'schuljahr', 'anzahlAbschnitte', 'aktuellerAbschnitt']
   for (const key of requiredNumbers) {
     if (typeof obj[key] !== 'number') return false
   }
 
-  return hasKey(obj, 'schulnummer') && hasKey(obj, 'schulform')
+  const schulnummerType = typeof obj['schulnummer']
+  if (schulnummerType !== 'string' && schulnummerType !== 'number') return false
+  return typeof obj['schulform'] === 'string'
 }
 
 // ---------------------------------------------------------------------------
@@ -75,14 +80,17 @@ export function validateEnmExport(raw: unknown): EnmExport {
 
   // Pflicht-Zahlen
   const requiredNumbers: Array<keyof EnmExport> = [
-    'enmRevision', 'schuljahr', 'anzahlAbschnitte', 'aktuellerAbschnitt', 'lehrerID'
+    'enmRevision', 'schuljahr', 'anzahlAbschnitte', 'aktuellerAbschnitt'
   ]
   for (const key of requiredNumbers) {
     requireNumber(raw, key as string, 'ENM-Root')
   }
 
-  // Pflicht-Strings
-  requireString(raw, 'schulnummer', 'ENM-Root')
+  // Pflicht-Strings (schulnummer kann serverseitig auch numerisch geliefert werden)
+  requireStringOrNumber(raw, 'schulnummer', 'ENM-Root')
+  if (typeof raw['schulnummer'] === 'number') {
+    raw['schulnummer'] = String(raw['schulnummer'])
+  }
   requireString(raw, 'schulform', 'ENM-Root')
 
   // Schüler-Validierung (Stichprobe der ersten 3)
