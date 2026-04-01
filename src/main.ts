@@ -1,4 +1,4 @@
-import { createApp, defineComponent, h, ref } from 'vue'
+import { createApp, defineComponent, h, onUnmounted, ref } from 'vue'
 import { createPinia } from 'pinia'
 import { useConferenceStore } from './stores/conferenceStore'
 import type { KonferenzSchueler, Notenkuerzel } from './types/enm'
@@ -178,6 +178,13 @@ function lupeTone(note: Notenkuerzel | null): { frame: string, note: string, lab
   return { frame: 'nf-bad', note: 'nc-bad', label: 'lc-bad', text: value === 5 ? 'mangelhaft' : 'ungenuegend' }
 }
 
+function formatTimer(seconds: number): string {
+  const safe = Math.max(0, seconds)
+  const mins = Math.floor(safe / 60).toString().padStart(2, '0')
+  const secs = (safe % 60).toString().padStart(2, '0')
+  return `${mins}:${secs}`
+}
+
 const App = defineComponent({
   setup() {
     const store = useConferenceStore()
@@ -197,6 +204,16 @@ const App = defineComponent({
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const hideNotTaughtInLupe = ref(true)
+    const timerModalOpen = ref(false)
+    const timerTotalSeconds = ref(300)
+    const timerRemainingSeconds = ref(300)
+    const timerRunning = ref(false)
+    const timerFinishedFlash = ref(false)
+    const timerSoundMuted = ref(false)
+    const timerRepeatEnabled = ref(true)
+    const timerPresets = [180, 300, 600, 900]
+    let timerIntervalId: number | null = null
+    let timerFlashTimeoutId: number | null = null
 
     function persistRuntimeConfig() {
       if (typeof window === 'undefined') return
@@ -213,6 +230,131 @@ const App = defineComponent({
         // Ignore storage errors (e.g. strict browser privacy mode)
       }
     }
+
+    function clearTimerInterval() {
+      if (timerIntervalId !== null) {
+        window.clearInterval(timerIntervalId)
+        timerIntervalId = null
+      }
+    }
+
+    function clearTimerFeedbackTimeout() {
+      if (timerFlashTimeoutId !== null) {
+        window.clearTimeout(timerFlashTimeoutId)
+        timerFlashTimeoutId = null
+      }
+    }
+
+    function playTimerDoneSound() {
+      if (timerSoundMuted.value) return
+      if (typeof window === 'undefined') return
+      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextCtor) return
+
+      try {
+        const ctx = new AudioContextCtor()
+        const start = ctx.currentTime + 0.02
+        const pattern = [0, 0.18]
+
+        for (const offset of pattern) {
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.value = 880
+          gain.gain.value = 0.0001
+          osc.connect(gain)
+          gain.connect(ctx.destination)
+
+          const at = start + offset
+          gain.gain.exponentialRampToValueAtTime(0.04, at + 0.01)
+          gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.12)
+          osc.start(at)
+          osc.stop(at + 0.13)
+        }
+
+        window.setTimeout(() => {
+          void ctx.close()
+        }, 500)
+      } catch {
+        // Ignore audio feedback errors (browser policy/device restrictions)
+      }
+    }
+
+    function finishTimer() {
+      timerRunning.value = false
+      clearTimerInterval()
+      timerFinishedFlash.value = true
+      clearTimerFeedbackTimeout()
+      timerFlashTimeoutId = window.setTimeout(() => {
+        timerFinishedFlash.value = false
+      }, 2600)
+      playTimerDoneSound()
+    }
+
+    function tickTimer() {
+      if (!timerRunning.value) return
+      timerRemainingSeconds.value = Math.max(0, timerRemainingSeconds.value - 1)
+      if (timerRemainingSeconds.value === 0) {
+        finishTimer()
+      }
+    }
+
+    function setTimerPreset(seconds: number) {
+      timerTotalSeconds.value = seconds
+      timerRemainingSeconds.value = seconds
+      timerRunning.value = false
+      timerFinishedFlash.value = false
+      clearTimerInterval()
+      clearTimerFeedbackTimeout()
+    }
+
+    function startTimerFromCurrentPreset() {
+      timerRemainingSeconds.value = timerTotalSeconds.value
+      timerFinishedFlash.value = false
+      clearTimerFeedbackTimeout()
+      timerRunning.value = true
+      clearTimerInterval()
+      timerIntervalId = window.setInterval(tickTimer, 1000)
+    }
+
+    function toggleTimer() {
+      if (timerRunning.value) {
+        timerRunning.value = false
+        clearTimerInterval()
+        return
+      }
+
+      if (timerRemainingSeconds.value <= 0) {
+        timerRemainingSeconds.value = timerTotalSeconds.value
+      }
+
+      timerFinishedFlash.value = false
+      clearTimerFeedbackTimeout()
+      timerRunning.value = true
+      clearTimerInterval()
+      timerIntervalId = window.setInterval(tickTimer, 1000)
+    }
+
+    function resetTimer() {
+      timerRunning.value = false
+      clearTimerInterval()
+      clearTimerFeedbackTimeout()
+      timerFinishedFlash.value = false
+      timerRemainingSeconds.value = timerTotalSeconds.value
+    }
+
+    function applyTimerRepeatOnStudentChange(newSchuelerId: number) {
+      if (!timerRepeatEnabled.value) return
+      if (activeMode.value !== 'klasse') return
+      if (!store.currentKlasse) return
+      if (selectedSchuelerId.value === newSchuelerId) return
+      startTimerFromCurrentPreset()
+    }
+
+    onUnmounted(() => {
+      clearTimerInterval()
+      clearTimerFeedbackTimeout()
+    })
 
     async function connectToServer() {
       if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
@@ -305,6 +447,7 @@ const App = defineComponent({
     }
 
     function selectSchueler(schuelerId: number) {
+      applyTimerRepeatOnStudentChange(schuelerId)
       selectedSchuelerId.value = schuelerId
     }
 
@@ -314,7 +457,7 @@ const App = defineComponent({
       const currentIndex = klasse.schueler.findIndex(entry => entry.schueler.id === selectedSchuelerId.value)
       if (currentIndex < 0) return
       const nextIndex = Math.max(0, Math.min(klasse.schueler.length - 1, currentIndex + direction))
-      selectedSchuelerId.value = klasse.schueler[nextIndex].schueler.id
+      selectSchueler(klasse.schueler[nextIndex].schueler.id)
     }
 
     function startEditingCell(schuelerId: number, lerngruppeId: number) {
@@ -408,6 +551,9 @@ const App = defineComponent({
           ])]
         })
         : []
+
+      const timerLabel = formatTimer(timerRemainingSeconds.value)
+      const showTimerChip = timerRunning.value || timerRemainingSeconds.value !== timerTotalSeconds.value || timerFinishedFlash.value
 
       return h('main', {
         class: inConference
@@ -578,6 +724,12 @@ const App = defineComponent({
                 },
               }, 'Schuelerlupe'),
               h('button', {
+                class: `icon-btn ${timerRunning.value ? 'timer-on' : ''} ${timerFinishedFlash.value ? 'timer-finished' : ''}`.trim(),
+                onClick: () => {
+                  timerModalOpen.value = true
+                },
+              }, timerRunning.value || showTimerChip ? `Timer ${timerLabel}` : 'Timer'),
+              h('button', {
                 class: 'icon-btn',
                 onClick: () => {
                   tableScale.value = tableScale.value === 'kompakt' ? 'gross' : 'kompakt'
@@ -601,6 +753,7 @@ const App = defineComponent({
               h('div', ['Schueler: ', h('b', String(klasse.schueler.length))]),
               h('div', ['Faecher: ', h('b', String(klasse.faecher.length))]),
               h('div', [`${store.schulInfo?.schuljahr ?? '–'} / Abschnitt ${store.schulInfo?.abschnitt ?? '–'}`]),
+              h('div', { class: `timer-chip ${showTimerChip ? 'visible' : ''} ${timerFinishedFlash.value ? 'done' : ''}`.trim() }, timerLabel),
             ]),
             activeMode.value === 'klasse'
               ? h('div', { class: 'table-wrap' }, [
@@ -724,6 +877,59 @@ const App = defineComponent({
                     lupeCards.length
                       ? h('div', { class: 'lupe-grid' }, lupeCards)
                       : h('p', { class: 'lupe-empty' }, 'Keine erteilten Faecher in der aktuellen Auswahl.'),
+                  ]),
+                ]),
+              ])
+              : null,
+            timerModalOpen.value
+              ? h('div', {
+                class: 'timer-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    timerModalOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'timer-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      timerModalOpen.value = false
+                    },
+                  }, '×'),
+                  h('div', { class: 'timer-modal-label' }, 'Konferenztimer'),
+                  h('div', { class: `timer-big ${timerRunning.value ? 'running' : ''} ${timerFinishedFlash.value ? 'done' : ''}`.trim() }, timerLabel),
+                  h('div', { class: 'timer-presets' }, timerPresets.map(seconds =>
+                    h('button', {
+                      class: `timer-preset ${timerTotalSeconds.value === seconds ? 'active' : ''}`.trim(),
+                      onClick: () => {
+                        setTimerPreset(seconds)
+                      },
+                    }, `${Math.floor(seconds / 60)} min`)
+                  )),
+                  h('div', { class: 'timer-options' }, [
+                    h('button', {
+                      class: `timer-option ${timerSoundMuted.value ? 'active' : ''}`.trim(),
+                      onClick: () => {
+                        timerSoundMuted.value = !timerSoundMuted.value
+                      },
+                    }, timerSoundMuted.value ? 'Ton: aus' : 'Ton: an'),
+                    h('button', {
+                      class: `timer-option ${timerRepeatEnabled.value ? 'active' : ''}`.trim(),
+                      onClick: () => {
+                        timerRepeatEnabled.value = !timerRepeatEnabled.value
+                      },
+                    }, timerRepeatEnabled.value ? 'Repeat: an' : 'Repeat: aus'),
+                  ]),
+                  h('div', { class: 'timer-modal-btns' }, [
+                    h('button', {
+                      class: 'timer-btn',
+                      onClick: resetTimer,
+                    }, 'Zuruecksetzen'),
+                    h('button', {
+                      class: `timer-btn primary ${timerRunning.value ? 'stop' : ''}`.trim(),
+                      onClick: toggleTimer,
+                    }, timerRunning.value ? 'Pause' : (timerRemainingSeconds.value < timerTotalSeconds.value ? 'Weiter' : 'Starten')),
                   ]),
                 ]),
               ])

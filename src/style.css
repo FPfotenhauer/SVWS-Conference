@@ -322,6 +322,17 @@ h1 {
   color: #3c3489;
 }
 
+.icon-btn.timer-on {
+  background: #e1f5ee;
+  border-color: #0f6e56;
+  color: #0f6e56;
+}
+
+.icon-btn.timer-finished {
+  border-color: #b06717;
+  color: #7a460f;
+}
+
 .icon-btn-logout {
   background: #fdf2f2;
   border-color: #e9caca;
@@ -351,6 +362,40 @@ h1 {
 
 .infobar b {
   color: #3d3d3a;
+}
+
+.timer-chip {
+  margin-left: auto;
+  display: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f6e56;
+  background: #e1f5ee;
+  border: 1px solid #9ad6c5;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-chip.visible {
+  display: inline-flex;
+}
+
+.timer-chip.done {
+  color: #7a460f;
+  background: #fff0de;
+  border-color: #e9c99f;
+  animation: timerPulse 1.6s ease-in-out 2;
+}
+
+@keyframes timerPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 .table-wrap {
@@ -480,6 +525,147 @@ td.changed {
   align-items: center;
   justify-content: center;
   padding: 0.6rem;
+}
+
+.timer-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: rgba(0, 0, 0, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.timer-modal-bg.open {
+  display: flex;
+}
+
+.timer-modal {
+  position: relative;
+  width: min(420px, 95vw);
+  background: #fff;
+  border: 1px solid #d3d1c7;
+  border-radius: 14px;
+  padding: 28px 20px 20px;
+  text-align: center;
+}
+
+.timer-modal-close {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  border: none;
+  background: transparent;
+  color: #6b6b66;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.timer-modal-label {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5f5e5a;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.timer-big {
+  font-size: 56px;
+  line-height: 1;
+  font-weight: 800;
+  margin-bottom: 14px;
+  color: #2b2a27;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-big.running {
+  color: #0f6e56;
+}
+
+.timer-big.done {
+  color: #7a460f;
+}
+
+.timer-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.timer-options {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.timer-option {
+  border: 1px solid #d3d1c7;
+  background: #f5f4f0;
+  color: #3d3d3a;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timer-option.active {
+  background: #eeedfe;
+  border-color: #534ab7;
+  color: #3c3489;
+}
+
+.timer-preset {
+  border: 1px solid #d3d1c7;
+  background: #f5f4f0;
+  color: #3d3d3a;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.timer-preset.active {
+  background: #e1f5ee;
+  border-color: #0f6e56;
+  color: #0f6e56;
+}
+
+.timer-modal-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.timer-btn {
+  border: 1px solid #d3d1c7;
+  background: #f5f4f0;
+  color: #3d3d3a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timer-btn.primary {
+  background: #534ab7;
+  color: #fff;
+  border-color: #534ab7;
+}
+
+.timer-btn.primary.stop {
+  background: #fbe8e8;
+  color: #8c2d2d;
+  border-color: #dfb3b3;
 }
 
 .lupe-modal-bg.open {
@@ -757,6 +943,10 @@ td.changed {
   .infobar {
     gap: 8px;
     font-size: 12px;
+  }
+
+  .timer-chip {
+    margin-left: 0;
   }
 
   table {
