@@ -167,6 +167,12 @@ h1 {
   background: linear-gradient(120deg, var(--accent-2), #2f9ea0);
 }
 
+.tile-button.tile-button-secondary {
+  background: #eef3ff;
+  color: #1f2940;
+  border-color: #ced9ee;
+}
+
 .tile-button:disabled {
   opacity: 0.65;
   cursor: not-allowed;

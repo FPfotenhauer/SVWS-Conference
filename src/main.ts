@@ -12,6 +12,16 @@ type SvwsDefaults = {
   password: string
 }
 
+type RuntimeSvwsConfig = {
+  baseUrl: string
+  schema: string
+  username: string
+  password: string
+  trustSelfSigned: boolean
+}
+
+const RUNTIME_CONFIG_STORAGE_KEY = 'svws-conference.runtime-config'
+
 declare const __SVWS_DEFAULTS__: Partial<SvwsDefaults> | undefined
 
 function readSvwsDefaults(): Partial<SvwsDefaults> {
@@ -33,6 +43,48 @@ function buildDefaultBaseUrl(host: string, port: string): string {
   return trimmedPort
     ? `https://${trimmedHost}:${trimmedPort}`
     : `https://${trimmedHost}`
+}
+
+function parseBooleanFlag(value: string | undefined): boolean | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return undefined
+  return ['1', 'true', 'yes', 'on', 'ja'].includes(normalized)
+}
+
+function parseEnvLikeText(content: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) continue
+
+    const cleaned = line.startsWith('export ') ? line.slice(7).trim() : line
+    const separatorIndex = cleaned.indexOf('=')
+    if (separatorIndex <= 0) continue
+
+    const key = cleaned.slice(0, separatorIndex).trim()
+    let value = cleaned.slice(separatorIndex + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"'))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    result[key] = value
+  }
+  return result
+}
+
+function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(RUNTIME_CONFIG_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Partial<RuntimeSvwsConfig>
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function cloudIcon() {
@@ -130,12 +182,14 @@ const App = defineComponent({
   setup() {
     const store = useConferenceStore()
     const fileInput = ref<HTMLInputElement | null>(null)
+    const configInput = ref<HTMLInputElement | null>(null)
     const defaults = readSvwsDefaults()
-    const serverUrl = ref(buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
-    const serverSchema = ref(defaults.schema ?? '')
-    const username = ref(defaults.user ?? '')
-    const password = ref(defaults.password ?? '')
-    const trustSelfSigned = ref(false)
+    const storedConfig = readStoredRuntimeConfig()
+    const serverUrl = ref(storedConfig.baseUrl ?? buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
+    const serverSchema = ref(storedConfig.schema ?? defaults.schema ?? '')
+    const username = ref(storedConfig.username ?? defaults.user ?? '')
+    const password = ref(storedConfig.password ?? defaults.password ?? '')
+    const trustSelfSigned = ref(storedConfig.trustSelfSigned ?? false)
     const status = ref('Noch keine Daten geladen.')
     const selectedSchuelerId = ref<number | null>(null)
     const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
@@ -143,6 +197,22 @@ const App = defineComponent({
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const hideNotTaughtInLupe = ref(true)
+
+    function persistRuntimeConfig() {
+      if (typeof window === 'undefined') return
+      const payload: RuntimeSvwsConfig = {
+        baseUrl: serverUrl.value,
+        schema: serverSchema.value,
+        username: username.value,
+        password: password.value,
+        trustSelfSigned: trustSelfSigned.value,
+      }
+      try {
+        window.localStorage.setItem(RUNTIME_CONFIG_STORAGE_KEY, JSON.stringify(payload))
+      } catch {
+        // Ignore storage errors (e.g. strict browser privacy mode)
+      }
+    }
 
     async function connectToServer() {
       if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
@@ -165,6 +235,53 @@ const App = defineComponent({
       status.value = store.error
         ? `Fehler: ${store.error}`
         : 'Verbindung erfolgreich. ENM-Daten wurden geladen.'
+      if (!store.error) {
+        persistRuntimeConfig()
+      }
+    }
+
+    function triggerConfigUpload() {
+      configInput.value?.click()
+    }
+
+    async function onConfigFileSelected(event: Event) {
+      const target = event.target as HTMLInputElement
+      const file = target.files?.[0]
+      if (!file) return
+
+      try {
+        const content = await file.text()
+        const env = parseEnvLikeText(content)
+
+        const host = env['SVWSSERVER_HOST'] ?? env['VITE_SVWSSERVER_HOST']
+        const port = env['SVWSSERVER_PORT'] ?? env['VITE_SVWSSERVER_PORT'] ?? ''
+        const baseUrl = env['SVWS_BASE_URL'] ?? env['VITE_SVWS_BASE_URL']
+        const schema = env['SVWSSERVER_SCHEMA'] ?? env['VITE_SVWSSERVER_SCHEMA']
+        const user = env['SVWSSERVER_USER'] ?? env['VITE_SVWSSERVER_USER']
+        const pass = env['SVWSSERVER_PASSWORD'] ?? env['VITE_SVWSSERVER_PASSWORD']
+        const trustFlag =
+          parseBooleanFlag(env['SVWSSERVER_TRUST_SELF_SIGNED'])
+          ?? parseBooleanFlag(env['VITE_SVWSSERVER_TRUST_SELF_SIGNED'])
+
+        if (typeof baseUrl === 'string' && baseUrl.trim()) {
+          serverUrl.value = baseUrl.trim()
+        } else if (typeof host === 'string' && host.trim()) {
+          serverUrl.value = buildDefaultBaseUrl(host, port)
+        }
+        if (typeof schema === 'string') serverSchema.value = schema
+        if (typeof user === 'string') username.value = user
+        if (typeof pass === 'string') password.value = pass
+        if (typeof trustFlag === 'boolean') trustSelfSigned.value = trustFlag
+
+        persistRuntimeConfig()
+        status.value = `Konfiguration geladen: ${file.name}`
+      } catch (error) {
+        status.value = error instanceof Error
+          ? `Konfigurationsdatei konnte nicht gelesen werden: ${error.message}`
+          : 'Konfigurationsdatei konnte nicht gelesen werden.'
+      } finally {
+        target.value = ''
+      }
     }
 
     function triggerUpload() {
@@ -319,6 +436,7 @@ const App = defineComponent({
                   value: serverUrl.value,
                   onInput: (event: Event) => {
                     serverUrl.value = (event.target as HTMLInputElement).value
+                    persistRuntimeConfig()
                   },
                 }),
                 h('input', {
@@ -328,6 +446,7 @@ const App = defineComponent({
                   value: serverSchema.value,
                   onInput: (event: Event) => {
                     serverSchema.value = (event.target as HTMLInputElement).value
+                    persistRuntimeConfig()
                   },
                 }),
                 h('input', {
@@ -338,6 +457,7 @@ const App = defineComponent({
                   autocomplete: 'username',
                   onInput: (event: Event) => {
                     username.value = (event.target as HTMLInputElement).value
+                    persistRuntimeConfig()
                   },
                 }),
                 h('input', {
@@ -348,6 +468,7 @@ const App = defineComponent({
                   autocomplete: 'current-password',
                   onInput: (event: Event) => {
                     password.value = (event.target as HTMLInputElement).value
+                    persistRuntimeConfig()
                   },
                 }),
               ]),
@@ -357,10 +478,29 @@ const App = defineComponent({
                   checked: trustSelfSigned.value,
                   onChange: (event: Event) => {
                     trustSelfSigned.value = (event.target as HTMLInputElement).checked
+                    persistRuntimeConfig()
                   },
                 }),
                 h('span', 'Zertifikat vertrauen (selbstsigniert)'),
               ]),
+              h('input', {
+                ref: configInput,
+                class: 'hidden-file-input',
+                type: 'file',
+                accept: '.env,.txt,text/plain',
+                onChange: (event: Event) => {
+                  void onConfigFileSelected(event)
+                },
+              }),
+              h(
+                'button',
+                {
+                  class: 'tile-button tile-button-secondary',
+                  onClick: triggerConfigUpload,
+                  disabled: store.loading,
+                },
+                'Konfiguration laden (.env)'
+              ),
               h(
                 'button',
                 {
