@@ -112,6 +112,20 @@ function numericGrade(note: Notenkuerzel | null): number | null {
   return value
 }
 
+function lupeTone(note: Notenkuerzel | null): { frame: string, note: string, label: string, text: string } {
+  if (!note) {
+    return { frame: '', note: 'nc-sonder', label: 'lc-none', text: 'nicht erteilt' }
+  }
+  const value = Number.parseInt(note, 10)
+  if (Number.isNaN(value)) {
+    return { frame: '', note: 'nc-sonder', label: 'lc-none', text: note }
+  }
+  if (value <= 2) return { frame: 'nf-gut', note: 'nc-gut', label: 'lc-gut', text: value === 1 ? 'sehr gut' : 'gut' }
+  if (value <= 3) return { frame: 'nf-ok', note: 'nc-ok', label: 'lc-ok', text: 'befriedigend' }
+  if (value <= 4) return { frame: 'nf-warn', note: 'nc-warn', label: 'lc-warn', text: 'ausreichend' }
+  return { frame: 'nf-bad', note: 'nc-bad', label: 'lc-bad', text: value === 5 ? 'mangelhaft' : 'ungenuegend' }
+}
+
 const App = defineComponent({
   setup() {
     const store = useConferenceStore()
@@ -127,6 +141,7 @@ const App = defineComponent({
     const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
     const lupeOpen = ref(false)
     const editingCell = ref<string | null>(null)
+    const tableScale = ref<'kompakt' | 'gross'>('kompakt')
 
     async function connectToServer() {
       if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
@@ -175,6 +190,15 @@ const App = defineComponent({
       selectedSchuelerId.value = schuelerId
     }
 
+    function navigateSchueler(direction: -1 | 1) {
+      const klasse = store.currentKlasse
+      if (!klasse || !selectedSchuelerId.value) return
+      const currentIndex = klasse.schueler.findIndex(entry => entry.schueler.id === selectedSchuelerId.value)
+      if (currentIndex < 0) return
+      const nextIndex = Math.max(0, Math.min(klasse.schueler.length - 1, currentIndex + direction))
+      selectedSchuelerId.value = klasse.schueler[nextIndex].schueler.id
+    }
+
     function startEditingCell(schuelerId: number, lerngruppeId: number) {
       editingCell.value = `${schuelerId}:${lerngruppeId}`
     }
@@ -183,6 +207,15 @@ const App = defineComponent({
       const note = value ? value as Notenkuerzel : null
       store.updateNote(schuelerId, lerngruppeId, note)
       editingCell.value = null
+    }
+
+    function logout() {
+      store.reset()
+      selectedSchuelerId.value = null
+      activeMode.value = 'klasse'
+      lupeOpen.value = false
+      editingCell.value = null
+      status.value = 'Abgemeldet. Noch keine Daten geladen.'
     }
 
     return () => {
@@ -201,6 +234,9 @@ const App = defineComponent({
       }
 
       const selectedSchueler = klasse?.schueler.find(entry => entry.schueler.id === selectedSchuelerId.value) ?? null
+      const selectedSchuelerIndex = klasse && selectedSchuelerId.value
+        ? klasse.schueler.findIndex(entry => entry.schueler.id === selectedSchuelerId.value)
+        : -1
 
       const lerngruppenByFachId = new Map<number, number>()
       if (klasse) {
@@ -212,6 +248,7 @@ const App = defineComponent({
       }
 
       let avg = '–'
+      let gradedCount = 0
       if (selectedSchueler && klasse) {
         const values = klasse.faecher
           .map(fach => {
@@ -221,12 +258,31 @@ const App = defineComponent({
           })
           .filter((value): value is number => value !== null)
 
+        gradedCount = values.length
         if (values.length > 0) {
           avg = (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)
         }
       }
 
-      return h('main', { class: inConference ? 'app-shell conference-shell' : 'app-shell' }, [
+      const lupeCards = selectedSchueler && klasse
+        ? klasse.faecher.map(fach => {
+          const lgId = lerngruppenByFachId.get(fach.id)
+          const note = lgId ? store.getNote(selectedSchueler.schueler.id, lgId) : null
+          const tone = lupeTone(note)
+          return h('div', { class: `lupe-fach ${tone.frame}` }, [
+            h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
+            h('div', { class: 'lupe-fach-fn' }, fach.kuerzel),
+            h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
+            h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
+          ])
+        })
+        : []
+
+      return h('main', {
+        class: inConference
+          ? `app-shell conference-shell ${tableScale.value === 'gross' ? 'conference-shell-large' : ''}`
+          : 'app-shell',
+      }, [
         !inConference
           ? h('section', { class: 'hero' }, [
             h('p', { class: 'hero-kicker' }, 'Startbildschirm'),
@@ -328,7 +384,7 @@ const App = defineComponent({
           : null,
 
         inConference && klasse
-          ? h('section', { class: 'conference-app' }, [
+          ? h('section', { class: tableScale.value === 'gross' ? 'conference-app conference-app-large' : 'conference-app' }, [
             h('header', { class: 'topbar' }, [
               h('span', { class: 'app-title' }, [
                 'SVWS ',
@@ -370,10 +426,21 @@ const App = defineComponent({
               h('button', {
                 class: 'icon-btn',
                 onClick: () => {
+                  tableScale.value = tableScale.value === 'kompakt' ? 'gross' : 'kompakt'
+                },
+              }, `Ansicht: ${tableScale.value === 'kompakt' ? 'Kompakt' : 'Gross'}`),
+              h('button', {
+                class: 'icon-btn',
+                onClick: () => {
                   store.clearNoteChanges()
                 },
                 disabled: !store.hasNoteChanges,
               }, `Aenderungen verwerfen (${store.noteChangeCount})`),
+              h('button', {
+                class: 'icon-btn icon-btn-logout',
+                onClick: logout,
+                disabled: store.loading,
+              }, 'Logout'),
             ]),
             h('div', { class: 'infobar' }, [
               h('div', ['Klasse: ', h('b', selectedKlasse?.kuerzelAnzeige ?? selectedKlasse?.kuerzel ?? '–')]),
@@ -446,17 +513,48 @@ const App = defineComponent({
               ])
               : h('div', { class: 'placeholder-panel' }, 'Lerngruppenansicht folgt als naechster Ausbauschritt.'),
             lupeOpen.value
-              ? h('aside', { class: 'lupe-wrap lupe-visible' }, [
-                h('div', { class: 'lupe-header-bar' }, [
-                  h('div', { class: 'lupe-avatar' }, selectedSchueler ? `${selectedSchueler.schueler.vorname[0]}${selectedSchueler.schueler.nachname[0]}` : '–'),
-                  h('div', [
-                    h('div', { class: 'lupe-name' }, selectedSchueler ? `${selectedSchueler.schueler.nachname}, ${selectedSchueler.schueler.vorname}` : 'Kein Schueler gewaehlt'),
-                    h('div', { class: 'lupe-meta' }, selectedSchueler ? `ID ${selectedSchueler.schueler.id}` : ''),
+              ? h('div', {
+                class: 'lupe-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    lupeOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'lupe-modal' }, [
+                  h('div', { class: 'lupe-header-bar' }, [
+                    h('div', { class: 'lupe-avatar' }, selectedSchueler ? `${selectedSchueler.schueler.vorname[0]}${selectedSchueler.schueler.nachname[0]}` : '–'),
+                    h('div', [
+                      h('div', { class: 'lupe-name' }, selectedSchueler ? `${selectedSchueler.schueler.nachname}, ${selectedSchueler.schueler.vorname}` : 'Kein Schueler gewaehlt'),
+                      h('div', { class: 'lupe-meta' }, klasse && selectedSchuelerIndex >= 0 ? `${selectedKlasse?.kuerzelAnzeige ?? selectedKlasse?.kuerzel ?? '–'} · Schueler ${selectedSchuelerIndex + 1} von ${klasse.schueler.length}` : ''),
+                    ]),
+                    h('div', { class: 'lupe-nav' }, [
+                      h('button', {
+                        class: 'lupe-nav-btn',
+                        disabled: !klasse || selectedSchuelerIndex <= 0,
+                        onClick: () => navigateSchueler(-1),
+                      }, '↑'),
+                      h('button', {
+                        class: 'lupe-nav-btn',
+                        disabled: !klasse || selectedSchuelerIndex < 0 || selectedSchuelerIndex >= klasse.schueler.length - 1,
+                        onClick: () => navigateSchueler(1),
+                      }, '↓'),
+                      h('button', {
+                        class: 'lupe-nav-btn lupe-close-btn',
+                        onClick: () => {
+                          lupeOpen.value = false
+                        },
+                      }, '×'),
+                    ]),
                   ]),
-                ]),
-                h('div', { class: 'lupe-stats-row' }, [
-                  h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
-                  h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
+                  h('div', { class: 'lupe-stats-row' }, [
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${klasse?.faecher.length ?? 0}`)]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
+                  ]),
+                  h('div', { class: 'lupe-grid-wrap' }, [
+                    h('div', { class: 'lupe-grid' }, lupeCards),
+                  ]),
                 ]),
               ])
               : null,

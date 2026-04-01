@@ -12,10 +12,6 @@ function isObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val)
 }
 
-function hasKey<T extends object>(obj: T, key: string): boolean {
-  return key in obj
-}
-
 function requireArray(obj: Record<string, unknown>, key: string, context: string): void {
   if (!Array.isArray(obj[key])) {
     throw new TypeError(`${context}: Feld "${key}" muss ein Array sein, ist aber: ${typeof obj[key]}`)
