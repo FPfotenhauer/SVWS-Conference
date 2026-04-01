@@ -285,7 +285,7 @@ const App = defineComponent({
           const tone = lupeTone(note)
           return [h('div', { class: `lupe-fach ${tone.frame}` }, [
             h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
-            h('div', { class: 'lupe-fach-fn' }, fach.kuerzel),
+            h('div', { class: 'lupe-fach-fn' }, fach.bezeichnung?.trim() || fach.kuerzelAnzeige || fach.kuerzel),
             h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
           ])]

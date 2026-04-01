@@ -58,6 +58,7 @@ export interface EnmFach {
   id: number
   kuerzel: string         // z.B. "D", "M", "E"
   kuerzelAnzeige: string  // Anzeigekürzel (kann abweichen)
+  bezeichnung?: string | null // Langbezeichnung, falls vom Server geliefert
   sortierung: number
   istFremdsprache: boolean
 }
