@@ -142,6 +142,7 @@ const App = defineComponent({
     const lupeOpen = ref(false)
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
+    const hideNotTaughtInLupe = ref(true)
 
     async function connectToServer() {
       if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
@@ -264,17 +265,30 @@ const App = defineComponent({
         }
       }
 
+      const fehlstundenGesamt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamt
+      const fehlstundenUnentschuldigt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamtUnentschuldigt
+      const bemerkungen = selectedSchueler?.schueler.bemerkungen
+      const remarkCards = [
+        { label: 'Arbeits- und Sozialverhalten', value: bemerkungen?.ASV },
+        { label: 'Ausserunterrichtliches Engagement', value: bemerkungen?.AUE },
+        { label: 'Zeugnisbemerkungen', value: bemerkungen?.ZB },
+      ]
+
       const lupeCards = selectedSchueler && klasse
-        ? klasse.faecher.map(fach => {
+        ? klasse.faecher.flatMap(fach => {
           const lgId = lerngruppenByFachId.get(fach.id)
           const note = lgId ? store.getNote(selectedSchueler.schueler.id, lgId) : null
+          const isNotTaught = note === null || note === 'NE'
+          if (hideNotTaughtInLupe.value && isNotTaught) {
+            return []
+          }
           const tone = lupeTone(note)
-          return h('div', { class: `lupe-fach ${tone.frame}` }, [
+          return [h('div', { class: `lupe-fach ${tone.frame}` }, [
             h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
             h('div', { class: 'lupe-fach-fn' }, fach.kuerzel),
             h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
-          ])
+          ])]
         })
         : []
 
@@ -530,6 +544,12 @@ const App = defineComponent({
                     ]),
                     h('div', { class: 'lupe-nav' }, [
                       h('button', {
+                        class: hideNotTaughtInLupe.value ? 'lupe-filter-btn active' : 'lupe-filter-btn',
+                        onClick: () => {
+                          hideNotTaughtInLupe.value = !hideNotTaughtInLupe.value
+                        },
+                      }, hideNotTaughtInLupe.value ? 'Nicht erteilt: aus' : 'Nicht erteilt: an'),
+                      h('button', {
                         class: 'lupe-nav-btn',
                         disabled: !klasse || selectedSchuelerIndex <= 0,
                         onClick: () => navigateSchueler(-1),
@@ -550,10 +570,20 @@ const App = defineComponent({
                   h('div', { class: 'lupe-stats-row' }, [
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${klasse?.faecher.length ?? 0}`)]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenGesamt ?? '–'))]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenUnentschuldigt ?? '–'))]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
                   ]),
+                  h('div', { class: 'lupe-remarks-wrap' }, [
+                    ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
+                      h('h4', { class: 'lupe-remark-label' }, card.label),
+                      h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
+                    ])),
+                  ]),
                   h('div', { class: 'lupe-grid-wrap' }, [
-                    h('div', { class: 'lupe-grid' }, lupeCards),
+                    lupeCards.length
+                      ? h('div', { class: 'lupe-grid' }, lupeCards)
+                      : h('p', { class: 'lupe-empty' }, 'Keine erteilten Faecher in der aktuellen Auswahl.'),
                   ]),
                 ]),
               ])

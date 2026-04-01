@@ -214,16 +214,17 @@ h1 {
 .topbar {
   background: #fff;
   border-bottom: 1px solid #d3d1c7;
-  padding: 9px 16px;
+  padding: 12px 18px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .app-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
   color: #1a1a18;
 }
 
@@ -233,7 +234,7 @@ h1 {
 
 .sep {
   width: 1px;
-  height: 18px;
+  height: 24px;
   background: #d3d1c7;
 }
 
@@ -244,14 +245,15 @@ h1 {
 }
 
 .field-label {
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   color: #5f5e5a;
 }
 
 .field-group select,
 .note-select {
-  font-size: 12px;
-  padding: 5px 26px 5px 9px;
+  font-size: 14px;
+  padding: 7px 28px 7px 10px;
   border: 1px solid #d3d1c7;
   border-radius: 6px;
   background: #fff;
@@ -263,8 +265,9 @@ h1 {
 }
 
 .mode-tab {
-  font-size: 11px;
-  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
   border: 1px solid #d3d1c7;
   background: #f5f4f0;
   color: #5f5e5a;
@@ -292,8 +295,9 @@ h1 {
 }
 
 .icon-btn {
-  font-size: 12px;
-  padding: 5px 11px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 13px;
   border-radius: 6px;
   border: 1px solid #d3d1c7;
   background: #f5f4f0;
@@ -330,11 +334,11 @@ h1 {
 .infobar {
   background: #fafaf8;
   border-bottom: 1px solid #e8e6e0;
-  padding: 5px 16px;
+  padding: 8px 18px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  font-size: 11px;
+  gap: 22px;
+  font-size: 13px;
   color: #5f5e5a;
   flex-wrap: wrap;
 }
@@ -353,7 +357,7 @@ h1 {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 thead th {
@@ -361,9 +365,9 @@ thead th {
   top: 0;
   z-index: 2;
   background: #fff;
-  padding: 10px 8px;
+  padding: 12px 8px;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 14px;
   color: #3d3d3a;
   border-bottom: 2px solid #d3d1c7;
   text-align: center;
@@ -427,12 +431,12 @@ td.changed {
 }
 
 .conference-app-large table {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .conference-app-large thead th {
-  font-size: 13px;
-  padding: 11px 9px;
+  font-size: 15px;
+  padding: 13px 9px;
 }
 
 .conference-app-large td {
@@ -477,8 +481,8 @@ td.changed {
 }
 
 .lupe-modal {
-  width: min(1100px, 100%);
-  max-height: min(86vh, 920px);
+  width: min(1600px, 98vw);
+  max-height: min(90vh, 980px);
   background: #fff;
   border-radius: 12px;
   border: 1px solid #d3d1c7;
@@ -500,6 +504,23 @@ td.changed {
   margin-left: auto;
   display: flex;
   gap: 6px;
+}
+
+.lupe-filter-btn {
+  border: 1px solid #d3d1c7;
+  background: #f5f4f0;
+  color: #3d3d3a;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.lupe-filter-btn.active {
+  border-color: #534ab7;
+  background: #eeedfe;
+  color: #3c3489;
 }
 
 .lupe-nav-btn {
@@ -559,6 +580,7 @@ td.changed {
   background: #fafaf8;
   border-right: 1px solid #e8e6e0;
   text-align: center;
+  min-width: 170px;
 }
 
 .lupe-stat-box:last-child {
@@ -576,6 +598,40 @@ td.changed {
   font-weight: 700;
 }
 
+.lupe-remarks-wrap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e8e6e0;
+  background: #fff;
+}
+
+.lupe-remark-card {
+  border: 1px solid #e2ded4;
+  border-radius: 10px;
+  background: #fafaf8;
+  padding: 10px 12px;
+  min-height: 88px;
+}
+
+.lupe-remark-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3d3d3a;
+}
+
+.lupe-remark-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #474742;
+  white-space: pre-wrap;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
 .lupe-grid-wrap {
   flex: 1;
   overflow-y: auto;
@@ -585,15 +641,22 @@ td.changed {
 
 .lupe-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.lupe-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #5f5e5a;
+  padding: 8px;
 }
 
 .lupe-fach {
   background: #fff;
   border: 1px solid #d3d1c7;
   border-radius: 10px;
-  padding: 18px 14px 16px;
+  padding: 14px 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -605,24 +668,24 @@ td.changed {
 .lupe-fach.nf-bad { border-left: 3px solid #a32d2d; }
 
 .lupe-fach-k {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #1a1a18;
   margin-bottom: 2px;
 }
 
 .lupe-fach-fn {
-  font-size: 12px;
+  font-size: 11px;
   color: #5f5e5a;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   text-align: center;
 }
 
 .lupe-fach-note {
-  font-size: 36px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #1a1a18;
 }
 
@@ -631,14 +694,14 @@ td.changed {
 .lupe-fach-note.nc-warn { color: #4d2a00; }
 .lupe-fach-note.nc-bad { color: #5c0f0f; }
 .lupe-fach-note.nc-sonder {
-  font-size: 18px;
+  font-size: 16px;
   color: #5f5e5a;
 }
 
 .lupe-fach-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 20px;
 }
 
@@ -667,8 +730,34 @@ td.changed {
     gap: 8px;
   }
 
+  .app-title {
+    font-size: 15px;
+  }
+
+  .field-label {
+    font-size: 11px;
+  }
+
+  .field-group select,
+  .note-select,
+  .icon-btn,
+  .mode-tab {
+    font-size: 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
   .infobar {
     gap: 8px;
+    font-size: 12px;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  thead th {
+    font-size: 12px;
   }
 
   .lupe-modal {
@@ -691,5 +780,9 @@ td.changed {
 
   .lupe-stat-box {
     min-width: 150px;
+  }
+
+  .lupe-remarks-wrap {
+    grid-template-columns: 1fr;
   }
 }
