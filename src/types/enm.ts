@@ -207,7 +207,7 @@ export interface EnmExport {
   anzahlAbschnitte: number      // 2 = Halbjahre, 4 = Quartale
   aktuellerAbschnitt: number
   publicKey: string | null
-  lehrerID: number              // ID des eingeloggten Lehrers
+  lehrerID: unknown            // Vom Server uneinheitlich geliefert; aktuell im UI ungenutzt
   fehlstundenEingabe: boolean
   fehlstundenSIFachbezogen: boolean
   fehlstundenSIIFachbezogen: boolean

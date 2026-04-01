@@ -1,7 +1,39 @@
 import { createApp, defineComponent, h, ref } from 'vue'
 import { createPinia } from 'pinia'
 import { useConferenceStore } from './stores/conferenceStore'
+import type { KonferenzSchueler, Notenkuerzel } from './types/enm'
 import './style.css'
+
+type SvwsDefaults = {
+  host: string
+  port: string
+  schema: string
+  user: string
+  password: string
+}
+
+declare const __SVWS_DEFAULTS__: Partial<SvwsDefaults> | undefined
+
+function readSvwsDefaults(): Partial<SvwsDefaults> {
+  if (typeof __SVWS_DEFAULTS__ === 'undefined') {
+    return {}
+  }
+  return __SVWS_DEFAULTS__
+}
+
+function buildDefaultBaseUrl(host: string, port: string): string {
+  const trimmedHost = host.trim()
+  const trimmedPort = port.trim()
+  if (!trimmedHost) return ''
+
+  if (/^https?:\/\//i.test(trimmedHost)) {
+    return trimmedHost
+  }
+
+  return trimmedPort
+    ? `https://${trimmedHost}:${trimmedPort}`
+    : `https://${trimmedHost}`
+}
 
 function cloudIcon() {
   return h(
@@ -66,21 +98,54 @@ function uploadIcon() {
   )
 }
 
+function gradeClass(note: Notenkuerzel | null): string {
+  if (!note) return 'badge ns'
+  const numeric = Number.parseInt(note, 10)
+  if (Number.isNaN(numeric)) return 'badge ns'
+  return `badge n${Math.max(1, Math.min(6, numeric))}`
+}
+
+function numericGrade(note: Notenkuerzel | null): number | null {
+  if (!note) return null
+  const value = Number.parseInt(note, 10)
+  if (Number.isNaN(value)) return null
+  return value
+}
+
 const App = defineComponent({
   setup() {
     const store = useConferenceStore()
     const fileInput = ref<HTMLInputElement | null>(null)
-    const serverUrl = ref('')
-    const serverToken = ref('')
+    const defaults = readSvwsDefaults()
+    const serverUrl = ref(buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
+    const serverSchema = ref(defaults.schema ?? '')
+    const username = ref(defaults.user ?? '')
+    const password = ref(defaults.password ?? '')
+    const trustSelfSigned = ref(false)
     const status = ref('Noch keine Daten geladen.')
+    const selectedSchuelerId = ref<number | null>(null)
+    const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
+    const lupeOpen = ref(false)
+    const editingCell = ref<string | null>(null)
 
     async function connectToServer() {
-      if (!serverUrl.value.trim() || !serverToken.value.trim()) {
-        status.value = 'Bitte Server-URL und Token angeben.'
+      if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
+        status.value = 'Bitte Server-URL, Schema und Benutzername angeben.'
         return
       }
 
-      await store.loadFromUrl(serverUrl.value.trim(), serverToken.value.trim())
+      await store.loadFromServer({
+        baseUrl: serverUrl.value.trim(),
+        schema: serverSchema.value.trim(),
+        username: username.value.trim(),
+        password: password.value,
+        trustSelfSigned: trustSelfSigned.value,
+      })
+
+      if (store.currentKlasse?.schueler[0]) {
+        selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
+      }
+
       status.value = store.error
         ? `Fehler: ${store.error}`
         : 'Verbindung erfolgreich. ENM-Daten wurden geladen.'
@@ -96,6 +161,9 @@ const App = defineComponent({
       if (!file) return
 
       await store.loadFromFile(file)
+      if (store.currentKlasse?.schueler[0]) {
+        selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
+      }
       status.value = store.error
         ? `Fehler: ${store.error}`
         : `Datei geladen: ${file.name}`
@@ -103,74 +171,301 @@ const App = defineComponent({
       target.value = ''
     }
 
-    return () =>
-      h('main', { class: 'app-shell' }, [
-        h('section', { class: 'hero' }, [
-          h('p', { class: 'hero-kicker' }, 'Startbildschirm'),
-          h('h1', 'SVWS Konferenzübersicht'),
-          h('p', { class: 'hero-text' }, 'Wähle eine Datenquelle, um die Notenkonferenz zu starten.'),
-        ]),
-        h('section', { class: 'tile-grid' }, [
-          h('article', { class: 'tile tile-server' }, [
-            h('div', { class: 'tile-icon' }, [cloudIcon()]),
-            h('h2', 'Verbindung zum SVWS-Server aufbauen'),
-            h('p', 'Direkter Abruf des ENM-Exports per API mit URL und Token.'),
-            h('div', { class: 'tile-fields' }, [
-              h('input', {
-                class: 'tile-input',
-                type: 'url',
-                placeholder: 'https://svws.schule.de',
-                value: serverUrl.value,
-                onInput: (event: Event) => {
-                  serverUrl.value = (event.target as HTMLInputElement).value
+    function selectSchueler(schuelerId: number) {
+      selectedSchuelerId.value = schuelerId
+    }
+
+    function startEditingCell(schuelerId: number, lerngruppeId: number) {
+      editingCell.value = `${schuelerId}:${lerngruppeId}`
+    }
+
+    function saveNote(schuelerId: number, lerngruppeId: number, value: string) {
+      const note = value ? value as Notenkuerzel : null
+      store.updateNote(schuelerId, lerngruppeId, note)
+      editingCell.value = null
+    }
+
+    return () => {
+      const klasse = store.currentKlasse
+      const inConference = !!store.enmExport
+
+      const klasseById = new Map(store.availableKlassen.map(item => [item.id, item]))
+      const selectedKlasse = store.selectedKlasseId !== null ? klasseById.get(store.selectedKlasseId) : null
+
+      const notenOptions = (store.enmExport?.noten ?? [])
+        .slice()
+        .sort((a, b) => b.notenpunkte - a.notenpunkte)
+
+      if (klasse?.schueler.length && !klasse.schueler.some(entry => entry.schueler.id === selectedSchuelerId.value)) {
+        selectedSchuelerId.value = klasse.schueler[0].schueler.id
+      }
+
+      const selectedSchueler = klasse?.schueler.find(entry => entry.schueler.id === selectedSchuelerId.value) ?? null
+
+      const lerngruppenByFachId = new Map<number, number>()
+      if (klasse) {
+        for (const lg of klasse.lerngruppen) {
+          if (!lerngruppenByFachId.has(lg.fachID)) {
+            lerngruppenByFachId.set(lg.fachID, lg.id)
+          }
+        }
+      }
+
+      let avg = '–'
+      if (selectedSchueler && klasse) {
+        const values = klasse.faecher
+          .map(fach => {
+            const lgId = lerngruppenByFachId.get(fach.id)
+            if (!lgId) return null
+            return numericGrade(store.getNote(selectedSchueler.schueler.id, lgId))
+          })
+          .filter((value): value is number => value !== null)
+
+        if (values.length > 0) {
+          avg = (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)
+        }
+      }
+
+      return h('main', { class: inConference ? 'app-shell conference-shell' : 'app-shell' }, [
+        !inConference
+          ? h('section', { class: 'hero' }, [
+            h('p', { class: 'hero-kicker' }, 'Startbildschirm'),
+            h('h1', 'SVWS Konferenzübersicht'),
+            h('p', { class: 'hero-text' }, 'Wähle eine Datenquelle, um die Notenkonferenz zu starten.'),
+          ])
+          : null,
+
+        !inConference
+          ? h('section', { class: 'tile-grid' }, [
+            h('article', { class: 'tile tile-server' }, [
+              h('div', { class: 'tile-icon' }, [cloudIcon()]),
+              h('h2', 'Verbindung zum SVWS-Server aufbauen'),
+              h('p', 'Direkter Abruf des ENM-Exports per API mit URL, Schema und BasicAuth.'),
+              h('div', { class: 'tile-fields' }, [
+                h('input', {
+                  class: 'tile-input',
+                  type: 'url',
+                  placeholder: 'https://svws.schule.de',
+                  value: serverUrl.value,
+                  onInput: (event: Event) => {
+                    serverUrl.value = (event.target as HTMLInputElement).value
+                  },
+                }),
+                h('input', {
+                  class: 'tile-input',
+                  type: 'text',
+                  placeholder: 'Schema (z. B. svwsdb)',
+                  value: serverSchema.value,
+                  onInput: (event: Event) => {
+                    serverSchema.value = (event.target as HTMLInputElement).value
+                  },
+                }),
+                h('input', {
+                  class: 'tile-input',
+                  type: 'text',
+                  placeholder: 'Benutzername',
+                  value: username.value,
+                  autocomplete: 'username',
+                  onInput: (event: Event) => {
+                    username.value = (event.target as HTMLInputElement).value
+                  },
+                }),
+                h('input', {
+                  class: 'tile-input',
+                  type: 'password',
+                  placeholder: 'Passwort (optional)',
+                  value: password.value,
+                  autocomplete: 'current-password',
+                  onInput: (event: Event) => {
+                    password.value = (event.target as HTMLInputElement).value
+                  },
+                }),
+              ]),
+              h('label', { class: 'tile-checkbox' }, [
+                h('input', {
+                  type: 'checkbox',
+                  checked: trustSelfSigned.value,
+                  onChange: (event: Event) => {
+                    trustSelfSigned.value = (event.target as HTMLInputElement).checked
+                  },
+                }),
+                h('span', 'Zertifikat vertrauen (selbstsigniert)'),
+              ]),
+              h(
+                'button',
+                {
+                  class: 'tile-button',
+                  onClick: () => void connectToServer(),
+                  disabled: store.loading,
                 },
-              }),
-              h('input', {
-                class: 'tile-input',
-                type: 'password',
-                placeholder: 'Bearer Token',
-                value: serverToken.value,
-                onInput: (event: Event) => {
-                  serverToken.value = (event.target as HTMLInputElement).value
-                },
-              }),
+                store.loading ? 'Verbinde...' : 'Server verbinden'
+              ),
             ]),
-            h(
-              'button',
-              {
-                class: 'tile-button',
-                onClick: () => void connectToServer(),
-                disabled: store.loading,
-              },
-              store.loading ? 'Verbinde...' : 'Server verbinden'
-            ),
-          ]),
-          h('article', { class: 'tile tile-upload' }, [
-            h('div', { class: 'tile-icon' }, [uploadIcon()]),
-            h('h2', 'Upload der Notendatei'),
-            h('p', 'Lade eine lokale Datei im Format enm.json.gz direkt in den Browser.'),
-            h('input', {
-              ref: fileInput,
-              class: 'hidden-file-input',
-              type: 'file',
-              accept: '.gz,.json.gz,application/gzip',
-              onChange: (event: Event) => {
-                void onFileSelected(event)
-              },
-            }),
-            h(
-              'button',
-              {
-                class: 'tile-button',
-                onClick: triggerUpload,
-                disabled: store.loading,
-              },
-              'Datei auswählen'
-            ),
-          ]),
-        ]),
+            h('article', { class: 'tile tile-upload' }, [
+              h('div', { class: 'tile-icon' }, [uploadIcon()]),
+              h('h2', 'Upload der Notendatei'),
+              h('p', 'Lade eine lokale Datei im Format enm.json.gz direkt in den Browser.'),
+              h('input', {
+                ref: fileInput,
+                class: 'hidden-file-input',
+                type: 'file',
+                accept: '.gz,.json.gz,application/gzip',
+                onChange: (event: Event) => {
+                  void onFileSelected(event)
+                },
+              }),
+              h(
+                'button',
+                {
+                  class: 'tile-button',
+                  onClick: triggerUpload,
+                  disabled: store.loading,
+                },
+                'Datei auswählen'
+              ),
+            ]),
+          ])
+          : null,
+
+        inConference && klasse
+          ? h('section', { class: 'conference-app' }, [
+            h('header', { class: 'topbar' }, [
+              h('span', { class: 'app-title' }, [
+                'SVWS ',
+                h('span', 'Konferenz'),
+              ]),
+              h('div', { class: 'sep' }),
+              h('div', { class: 'field-group' }, [
+                h('span', { class: 'field-label' }, 'Klasse'),
+                h('select', {
+                  value: store.selectedKlasseId ?? '',
+                  onChange: (event: Event) => {
+                    const nextId = Number((event.target as HTMLSelectElement).value)
+                    store.selectKlasse(nextId)
+                  },
+                }, store.availableKlassen.map(item => h('option', { value: item.id }, item.kuerzelAnzeige || item.kuerzel))),
+              ]),
+              h('div', { class: 'sep' }),
+              h('div', { class: 'mode-tabs' }, [
+                h('button', {
+                  class: activeMode.value === 'klasse' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    activeMode.value = 'klasse'
+                  },
+                }, 'Klasse'),
+                h('button', {
+                  class: activeMode.value === 'lerngruppe' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    activeMode.value = 'lerngruppe'
+                  },
+                }, 'Lerngruppe'),
+              ]),
+              h('div', { class: 'spacer' }),
+              h('button', {
+                class: lupeOpen.value ? 'icon-btn active' : 'icon-btn',
+                onClick: () => {
+                  lupeOpen.value = !lupeOpen.value
+                },
+              }, 'Schuelerlupe'),
+              h('button', {
+                class: 'icon-btn',
+                onClick: () => {
+                  store.clearNoteChanges()
+                },
+                disabled: !store.hasNoteChanges,
+              }, `Aenderungen verwerfen (${store.noteChangeCount})`),
+            ]),
+            h('div', { class: 'infobar' }, [
+              h('div', ['Klasse: ', h('b', selectedKlasse?.kuerzelAnzeige ?? selectedKlasse?.kuerzel ?? '–')]),
+              h('div', ['Schueler: ', h('b', String(klasse.schueler.length))]),
+              h('div', ['Faecher: ', h('b', String(klasse.faecher.length))]),
+              h('div', [`${store.schulInfo?.schuljahr ?? '–'} / Abschnitt ${store.schulInfo?.abschnitt ?? '–'}`]),
+            ]),
+            activeMode.value === 'klasse'
+              ? h('div', { class: 'table-wrap' }, [
+                h('table', [
+                  h('thead', [
+                    h('tr', [
+                      h('th', { class: 'col-nr' }, 'Nr.'),
+                      h('th', { class: 'col-name' }, 'Name'),
+                      ...klasse.faecher.map(fach =>
+                        h('th', { class: 'col-fach' }, fach.kuerzelAnzeige || fach.kuerzel)
+                      ),
+                    ]),
+                  ]),
+                  h('tbody', klasse.schueler.map((entry: KonferenzSchueler, index) =>
+                    h('tr', {
+                      class: entry.schueler.id === selectedSchuelerId.value ? 'selected' : '',
+                      onClick: () => {
+                        selectSchueler(entry.schueler.id)
+                      },
+                    }, [
+                      h('td', { class: 'col-nr' }, String(index + 1)),
+                      h('td', { class: 'col-name' }, `${entry.schueler.nachname}, ${entry.schueler.vorname}`),
+                      ...klasse.faecher.map(fach => {
+                        const lgId = lerngruppenByFachId.get(fach.id)
+                        if (!lgId) {
+                          return h('td', [h('span', { class: 'nl' }, '–')])
+                        }
+                        const note = store.getNote(entry.schueler.id, lgId)
+                        const isEditing = editingCell.value === `${entry.schueler.id}:${lgId}`
+
+                        if (isEditing) {
+                          return h('td', [
+                            h('select', {
+                              class: 'note-select',
+                              value: note ?? '',
+                              autofocus: true,
+                              onClick: (event: Event) => event.stopPropagation(),
+                              onBlur: () => {
+                                editingCell.value = null
+                              },
+                              onChange: (event: Event) => {
+                                saveNote(entry.schueler.id, lgId, (event.target as HTMLSelectElement).value)
+                              },
+                            }, [
+                              h('option', { value: '' }, '–'),
+                              ...notenOptions.map(item => h('option', { value: item.kuerzel }, item.kuerzel)),
+                            ]),
+                          ])
+                        }
+
+                        return h('td', {
+                          class: store.isNoteChanged(entry.schueler.id, lgId) ? 'changed' : '',
+                          onClick: (event: Event) => {
+                            event.stopPropagation()
+                            startEditingCell(entry.schueler.id, lgId)
+                          },
+                        }, [
+                          h('span', { class: gradeClass(note) }, note ?? '–'),
+                        ])
+                      }),
+                    ])
+                  )),
+                ]),
+              ])
+              : h('div', { class: 'placeholder-panel' }, 'Lerngruppenansicht folgt als naechster Ausbauschritt.'),
+            lupeOpen.value
+              ? h('aside', { class: 'lupe-wrap lupe-visible' }, [
+                h('div', { class: 'lupe-header-bar' }, [
+                  h('div', { class: 'lupe-avatar' }, selectedSchueler ? `${selectedSchueler.schueler.vorname[0]}${selectedSchueler.schueler.nachname[0]}` : '–'),
+                  h('div', [
+                    h('div', { class: 'lupe-name' }, selectedSchueler ? `${selectedSchueler.schueler.nachname}, ${selectedSchueler.schueler.vorname}` : 'Kein Schueler gewaehlt'),
+                    h('div', { class: 'lupe-meta' }, selectedSchueler ? `ID ${selectedSchueler.schueler.id}` : ''),
+                  ]),
+                ]),
+                h('div', { class: 'lupe-stats-row' }, [
+                  h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
+                  h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
+                ]),
+              ])
+              : null,
+          ])
+          : null,
+
         h('p', { class: 'status-line', role: 'status' }, status.value),
       ])
+    }
   },
 })
 
