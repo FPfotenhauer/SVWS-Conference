@@ -812,7 +812,7 @@ const App = defineComponent({
                 h('input', {
                   class: 'tile-input',
                   type: 'password',
-                  placeholder: 'Passwort (optional)',
+                  placeholder: 'Passwort',
                   value: password.value,
                   autocomplete: 'current-password',
                   onInput: (event: Event) => {
