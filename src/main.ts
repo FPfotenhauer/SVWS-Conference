@@ -165,9 +165,21 @@ function numericGrade(note: Notenkuerzel | null): number | null {
   return value
 }
 
+function readLerngruppeId(entry: unknown): number | null {
+  if (!entry || typeof entry !== 'object') return null
+  const raw = entry as Record<string, unknown>
+  const candidate = raw['lerngruppenID'] ?? raw['lerngruppeID']
+  if (typeof candidate === 'number') return candidate
+  if (typeof candidate === 'string') {
+    const parsed = Number(candidate)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 function lupeTone(note: Notenkuerzel | null): { frame: string, note: string, label: string, text: string } {
   if (!note) {
-    return { frame: '', note: 'nc-sonder', label: 'lc-none', text: 'nicht erteilt' }
+    return { frame: '', note: 'nc-sonder', label: 'lc-none', text: 'nicht benotet' }
   }
   const value = Number.parseInt(note, 10)
   if (Number.isNaN(value)) {
@@ -204,7 +216,6 @@ const App = defineComponent({
     const lupeOpen = ref(false)
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
-    const hideNotTaughtInLupe = ref(true)
     const timerModalOpen = ref(false)
     const changesModalOpen = ref(false)
     const logoutConfirmOpen = ref(false)
@@ -215,7 +226,7 @@ const App = defineComponent({
     const timerRunning = ref(false)
     const timerFinishedFlash = ref(false)
     const timerSoundMuted = ref(false)
-    const timerRepeatEnabled = ref(true)
+    const timerRepeatEnabled = ref(false)
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
@@ -630,16 +641,52 @@ const App = defineComponent({
         }
       }
 
+      const lerngruppenIdsByFachId = new Map<number, number[]>()
+      if (klasse) {
+        for (const lg of klasse.lerngruppen) {
+          const ids = lerngruppenIdsByFachId.get(lg.fachID)
+          if (ids) {
+            ids.push(lg.id)
+          } else {
+            lerngruppenIdsByFachId.set(lg.fachID, [lg.id])
+          }
+        }
+      }
+
+      const selectedSchuelerLerngruppenByFachId = new Map<number, number>()
+      if (selectedSchueler && klasse) {
+        const schuelerLerngruppeIds = new Set<number>(
+          selectedSchueler.schueler.leistungsdaten
+            .map(readLerngruppeId)
+            .filter((id): id is number => id !== null)
+        )
+
+        for (const lg of klasse.lerngruppen) {
+          if (!schuelerLerngruppeIds.has(lg.id)) continue
+          if (!selectedSchuelerLerngruppenByFachId.has(lg.fachID)) {
+            selectedSchuelerLerngruppenByFachId.set(lg.fachID, lg.id)
+          }
+        }
+      }
+
       let avg = '–'
       let gradedCount = 0
+      let relevantSubjectCount = 0
       if (selectedSchueler && klasse) {
-        const values = klasse.faecher
-          .map(fach => {
-            const lgId = lerngruppenByFachId.get(fach.id)
-            if (!lgId) return null
-            return numericGrade(store.getNote(selectedSchueler.schueler.id, lgId))
-          })
-          .filter((value): value is number => value !== null)
+        const values: number[] = []
+        for (const fach of klasse.faecher) {
+          const lgId = selectedSchuelerLerngruppenByFachId.get(fach.id)
+          if (!lgId) continue
+
+          const note = store.getNote(selectedSchueler.schueler.id, lgId)
+          if (note === 'NE') continue
+
+          relevantSubjectCount += 1
+          const numeric = numericGrade(note)
+          if (numeric !== null) {
+            values.push(numeric)
+          }
+        }
 
         gradedCount = values.length
         if (values.length > 0) {
@@ -661,16 +708,33 @@ const App = defineComponent({
         ]
         : []
 
+      const lehrerKuerzelById = new Map((store.enmExport?.lehrer ?? []).map(item => [item.id, item.kuerzel]))
+      const klasseLerngruppeById = new Map((klasse?.lerngruppen ?? []).map(item => [item.id, item]))
+
       const lupeCards = selectedSchueler && klasse
         ? klasse.faecher.flatMap(fach => {
-          const lgId = lerngruppenByFachId.get(fach.id)
-          const note = lgId ? store.getNote(selectedSchueler.schueler.id, lgId) : null
-          const isNotTaught = note === null || note === 'NE'
-          if (hideNotTaughtInLupe.value && isNotTaught) {
+          const lgId = selectedSchuelerLerngruppenByFachId.get(fach.id)
+          // Fach wird vom Schüler nicht belegt -> nicht erteilt -> nicht anzeigen.
+          if (!lgId) {
             return []
           }
+
+          const note = store.getNote(selectedSchueler.schueler.id, lgId)
+          const isNotTaught = note === 'NE'
+
+          // Nicht erteilte Fächer sollen in der Schülerlupe nicht auftauchen.
+          if (isNotTaught) {
+            return []
+          }
+
           const tone = lupeTone(note)
           const availableNotes = store.enmExport?.noten ?? []
+          const lerngruppe = klasseLerngruppeById.get(lgId)
+          const lehrerKuerzel = lerngruppe
+            ? (lerngruppe.lehrerID ?? lerngruppe.idsLehrer ?? [])
+              .map(id => lehrerKuerzelById.get(id))
+              .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            : []
           return [h('div', { class: `lupe-fach ${tone.frame}` }, [
             h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
             h('div', { class: 'lupe-fach-fn' }, fach.bezeichnung?.trim() || fach.kuerzelAnzeige || fach.kuerzel),
@@ -688,6 +752,7 @@ const App = defineComponent({
               ])
               : h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
+            h('div', { class: 'lupe-fach-lehrer' }, lehrerKuerzel.length ? lehrerKuerzel.join(', ') : '–'),
           ])]
         })
         : []
@@ -979,7 +1044,8 @@ const App = defineComponent({
                       h('td', { class: 'col-nr' }, String(index + 1)),
                       h('td', { class: 'col-name' }, `${entry.schueler.nachname}, ${entry.schueler.vorname}`),
                       ...klasse.faecher.map(fach => {
-                        const lgId = lerngruppenByFachId.get(fach.id)
+                        const lgId = (lerngruppenIdsByFachId.get(fach.id) ?? [])
+                          .find(id => entry.leistungenByLerngruppe.has(id))
                         if (!lgId) {
                           return h('td', [h('span', { class: 'nl' }, '–')])
                         }
@@ -1039,12 +1105,6 @@ const App = defineComponent({
                     ]),
                     h('div', { class: 'lupe-nav' }, [
                       h('button', {
-                        class: hideNotTaughtInLupe.value ? 'lupe-filter-btn active' : 'lupe-filter-btn',
-                        onClick: () => {
-                          hideNotTaughtInLupe.value = !hideNotTaughtInLupe.value
-                        },
-                      }, hideNotTaughtInLupe.value ? 'Nicht erteilt: aus' : 'Nicht erteilt: an'),
-                      h('button', {
                         class: 'lupe-nav-btn',
                         disabled: !klasse || selectedSchuelerIndex <= 0,
                         onClick: () => navigateSchueler(-1),
@@ -1064,7 +1124,7 @@ const App = defineComponent({
                   ]),
                   h('div', { class: 'lupe-stats-row' }, [
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${klasse?.faecher.length ?? 0}`)]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${relevantSubjectCount}`)]),
                     selectedSchueler
                       ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
                         h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'),
