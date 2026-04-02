@@ -8,8 +8,8 @@
 
 1. [Einleitung](01-einleitung.md)
 2. [Schnellstart](02-schnellstart.md)
-3. Voraussetzungen
-4. Oberfläche im Überblick
+3. [Voraussetzungen](03-voraussetzungen.md)
+4. [Oberfläche im Überblick](04-oberflaeche.md)
 5. Daten laden
 6. Konferenzübersicht nutzen
 7. Datenschutz und Datensicherheit
@@ -18,14 +18,6 @@
 10. Anhang
 
 ## Kapitelübersicht (geplant)
-
-### 3. Voraussetzungen
-
-Technische Voraussetzungen für Browser, Netzwerk und Datenzugriff.
-
-### 4. Oberfläche im Überblick
-
-Beschreibung der wichtigsten Bereiche und Bedienelemente.
 
 ### 5. Daten laden
 

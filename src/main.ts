@@ -1,7 +1,7 @@
 import { createApp, defineComponent, h, onUnmounted, ref } from 'vue'
 import { createPinia } from 'pinia'
 import { useConferenceStore } from './stores/conferenceStore'
-import type { KonferenzSchueler, Notenkuerzel } from './types/enm'
+import type { KonferenzSchueler, Notenkuerzel, EnmNote } from './types/enm'
 import './style.css'
 
 type SvwsDefaults = {
@@ -525,14 +525,19 @@ const App = defineComponent({
         }
       }
 
-      const fehlstundenGesamt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamt
-      const fehlstundenUnentschuldigt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamtUnentschuldigt
-      const bemerkungen = selectedSchueler?.schueler.bemerkungen
-      const remarkCards = [
-        { label: 'Arbeits- und Sozialverhalten', value: bemerkungen?.ASV },
-        { label: 'Ausserunterrichtliches Engagement', value: bemerkungen?.AUE },
-        { label: 'Zeugnisbemerkungen', value: bemerkungen?.ZB },
-      ]
+      const fehlstundenGesamt = selectedSchueler
+        ? store.getFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamt')
+        : undefined
+      const fehlstundenUnentschuldigt = selectedSchueler
+        ? store.getFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt')
+        : undefined
+      const remarkCards = selectedSchueler
+        ? [
+          { label: 'Arbeits- und Sozialverhalten', field: 'ASV' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'ASV') },
+          { label: 'Ausserunterrichtliches Engagement', field: 'AUE' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'AUE') },
+          { label: 'Zeugnisbemerkungen', field: 'ZB' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'ZB') },
+        ]
+        : []
 
       const lupeCards = selectedSchueler && klasse
         ? klasse.faecher.flatMap(fach => {
@@ -543,10 +548,23 @@ const App = defineComponent({
             return []
           }
           const tone = lupeTone(note)
+          const availableNotes = store.enmExport?.noten ?? []
           return [h('div', { class: `lupe-fach ${tone.frame}` }, [
             h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
             h('div', { class: 'lupe-fach-fn' }, fach.bezeichnung?.trim() || fach.kuerzelAnzeige || fach.kuerzel),
-            h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
+            lgId
+              ? h('select', {
+                class: `lupe-fach-note-select ${tone.note}`,
+                value: note ?? '',
+                onChange: (event: Event) => {
+                  const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                  store.updateNote(selectedSchueler.schueler.id, lgId, newNote || null)
+                },
+              }, [
+                h('option', { value: '' }, '–'),
+                ...availableNotes.map((n: EnmNote) => h('option', { value: n.kuerzel }, `${n.kuerzel} (${n.text})`)),
+              ])
+              : h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
           ])]
         })
@@ -738,10 +756,10 @@ const App = defineComponent({
               h('button', {
                 class: 'icon-btn',
                 onClick: () => {
-                  store.clearNoteChanges()
+                  store.clearAllChanges()
                 },
-                disabled: !store.hasNoteChanges,
-              }, `Aenderungen verwerfen (${store.noteChangeCount})`),
+                disabled: !store.hasAnyChanges,
+              }, `Aenderungen verwerfen (${store.totalChangeCount})`),
               h('button', {
                 class: 'icon-btn icon-btn-logout',
                 onClick: logout,
@@ -863,14 +881,52 @@ const App = defineComponent({
                   h('div', { class: 'lupe-stats-row' }, [
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${klasse?.faecher.length ?? 0}`)]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenGesamt ?? '–'))]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenUnentschuldigt ?? '–'))]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
+                    selectedSchueler
+                      ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+                        h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'),
+                        h('input', {
+                          type: 'number',
+                          class: 'lupe-stat-input',
+                          value: fehlstundenGesamt ?? 0,
+                          min: '0',
+                          onInput: (event: Event) => {
+                            const value = Number((event.target as HTMLInputElement).value)
+                            store.updateFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamt', value)
+                          },
+                        }),
+                      ])
+                      : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, '–')]),
+                    selectedSchueler
+                      ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+                        h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'),
+                        h('input', {
+                          type: 'number',
+                          class: 'lupe-stat-input',
+                          value: fehlstundenUnentschuldigt ?? 0,
+                          min: '0',
+                          onInput: (event: Event) => {
+                            const value = Number((event.target as HTMLInputElement).value)
+                            store.updateFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt', value)
+                          },
+                        }),
+                      ])
+                      : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.totalChangeCount))]),
                   ]),
                   h('div', { class: 'lupe-remarks-wrap' }, [
                     ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
                       h('h4', { class: 'lupe-remark-label' }, card.label),
-                      h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
+                      selectedSchueler
+                        ? h('textarea', {
+                          class: 'lupe-remark-textarea',
+                          value: card.value?.trim() ?? '',
+                          placeholder: '(Leer lassen für keine Bemerkung)',
+                          onInput: (event: Event) => {
+                            const value = (event.target as HTMLTextAreaElement).value.trim()
+                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
+                          },
+                        })
+                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
                     ])),
                   ]),
                   h('div', { class: 'lupe-grid-wrap' }, [

@@ -904,6 +904,75 @@ td.changed {
 .lupe-fach-label.lc-bad { background: #f5c8c8; color: #5c0f0f; }
 .lupe-fach-label.lc-none { background: #eae9e2; color: #888780; }
 
+.lupe-stat-editable {
+  position: relative;
+}
+
+.lupe-stat-input {
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  width: 100%;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.lupe-stat-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(18, 87, 214, 0.2);
+}
+
+.lupe-remark-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #474742;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px;
+  min-height: 80px;
+  resize: vertical;
+  background: #fff;
+}
+
+.lupe-remark-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(18, 87, 214, 0.2);
+}
+
+.lupe-fach-note-select {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #d3d1c7;
+  border-radius: 4px;
+  padding: 6px 8px;
+  width: 100%;
+  font-family: inherit;
+  color: #1a1a18;
+  background: #fff;
+  cursor: pointer;
+}
+
+.lupe-fach-note-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(18, 87, 214, 0.2);
+}
+
+.lupe-fach-note-select.nc-gut { color: #163d05; }
+.lupe-fach-note-select.nc-ok { color: #2c2c2a; }
+.lupe-fach-note-select.nc-warn { color: #4d2a00; }
+.lupe-fach-note-select.nc-bad { color: #5c0f0f; }
+.lupe-fach-note-select.nc-sonder { color: #5f5e5a; }
+
 .placeholder-panel {
   padding: 2rem;
   color: #5f5e5a;

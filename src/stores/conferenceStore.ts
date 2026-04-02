@@ -120,6 +120,8 @@ export const useConferenceStore = defineStore('conference', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const noteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
+  const bemerkungChanges = ref<Map<string, string | null>>(new Map())
+  const fehlstundenChanges = ref<Map<string, number>>(new Map())
 
   // ---------------------------------------------------------------------------
   // Lookup-Maps (intern, aus dem Export aufgebaut)
@@ -275,6 +277,12 @@ export const useConferenceStore = defineStore('conference', () => {
 
   const hasNoteChanges = computed(() => noteChanges.value.size > 0)
   const noteChangeCount = computed(() => noteChanges.value.size)
+  const hasBemerkungChanges = computed(() => bemerkungChanges.value.size > 0)
+  const bemerkungChangeCount = computed(() => bemerkungChanges.value.size)
+  const hasFehlstundenChanges = computed(() => fehlstundenChanges.value.size > 0)
+  const fehlstundenChangeCount = computed(() => fehlstundenChanges.value.size)
+  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0)
+  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fehlstundenChanges.value.size)
 
   function getChangeKey(schuelerId: number, lerngruppeId: number): string {
     return `${schuelerId}:${lerngruppeId}`
@@ -314,6 +322,12 @@ export const useConferenceStore = defineStore('conference', () => {
     noteChanges.value.clear()
   }
 
+  function clearAllChanges(): void {
+    noteChanges.value.clear()
+    bemerkungChanges.value.clear()
+    fehlstundenChanges.value.clear()
+  }
+
   function listNoteChanges(): NoteChange[] {
     const changes: NoteChange[] = []
     for (const [key, newNote] of noteChanges.value) {
@@ -331,6 +345,82 @@ export const useConferenceStore = defineStore('conference', () => {
   }
 
   // ---------------------------------------------------------------------------
+  // Bemerkungen (ASV, AUE, ZB)
+  // ---------------------------------------------------------------------------
+
+  function getBemerkungChangeKey(schuelerId: number, field: 'ASV' | 'AUE' | 'ZB'): string {
+    return `${schuelerId}:${field}`
+  }
+
+  function getOriginalBemerkungenValue(schuelerId: number, field: 'ASV' | 'AUE' | 'ZB'): string | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    return schueler.bemerkungen[field] ?? null
+  }
+
+  function getBemerkungenValue(schuelerId: number, field: 'ASV' | 'AUE' | 'ZB'): string | null {
+    const key = getBemerkungChangeKey(schuelerId, field)
+    if (bemerkungChanges.value.has(key)) {
+      return bemerkungChanges.value.get(key) ?? null
+    }
+    return getOriginalBemerkungenValue(schuelerId, field)
+  }
+
+  function updateBemerkungenValue(schuelerId: number, field: 'ASV' | 'AUE' | 'ZB', value: string | null): void {
+    const key = getBemerkungChangeKey(schuelerId, field)
+    const original = getOriginalBemerkungenValue(schuelerId, field)
+
+    if (original === value) {
+      bemerkungChanges.value.delete(key)
+      return
+    }
+
+    bemerkungChanges.value.set(key, value)
+  }
+
+  function isBemerkungChanged(schuelerId: number, field: 'ASV' | 'AUE' | 'ZB'): boolean {
+    return bemerkungChanges.value.has(getBemerkungChangeKey(schuelerId, field))
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fehlstunden
+  // ---------------------------------------------------------------------------
+
+  function getFehlstundenChangeKey(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'): string {
+    return `${schuelerId}:${field}`
+  }
+
+  function getOriginalFehlstundenValue(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'): number {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return 0
+    return schueler.lernabschnitt[field] ?? 0
+  }
+
+  function getFehlstundenValue(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'): number {
+    const key = getFehlstundenChangeKey(schuelerId, field)
+    if (fehlstundenChanges.value.has(key)) {
+      return fehlstundenChanges.value.get(key) ?? 0
+    }
+    return getOriginalFehlstundenValue(schuelerId, field)
+  }
+
+  function updateFehlstundenValue(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt', value: number): void {
+    const key = getFehlstundenChangeKey(schuelerId, field)
+    const original = getOriginalFehlstundenValue(schuelerId, field)
+
+    if (original === value) {
+      fehlstundenChanges.value.delete(key)
+      return
+    }
+
+    fehlstundenChanges.value.set(key, value)
+  }
+
+  function isFehlstundenChanged(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'): boolean {
+    return fehlstundenChanges.value.has(getFehlstundenChangeKey(schuelerId, field))
+  }
+
+  // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
 
@@ -340,6 +430,8 @@ export const useConferenceStore = defineStore('conference', () => {
     try {
       enmExport.value = await parseEnmGzip(file)
       noteChanges.value.clear()
+      bemerkungChanges.value.clear()
+      fehlstundenChanges.value.clear()
       // Erste Klasse vorauswählen
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -420,6 +512,8 @@ export const useConferenceStore = defineStore('conference', () => {
       const buffer = await response.arrayBuffer()
       enmExport.value = await parseEnmGzip(buffer)
       noteChanges.value.clear()
+      bemerkungChanges.value.clear()
+      fehlstundenChanges.value.clear()
 
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -449,6 +543,8 @@ export const useConferenceStore = defineStore('conference', () => {
     selectedKlasseId.value = null
     selectedLerngruppeId.value = null
     noteChanges.value.clear()
+    bemerkungChanges.value.clear()
+    fehlstundenChanges.value.clear()
     error.value = null
     loading.value = false
   }
@@ -472,6 +568,12 @@ export const useConferenceStore = defineStore('conference', () => {
     schulInfo,
     hasNoteChanges,
     noteChangeCount,
+    hasBemerkungChanges,
+    bemerkungChangeCount,
+    hasFehlstundenChanges,
+    fehlstundenChangeCount,
+    hasAnyChanges,
+    totalChangeCount,
     // Actions
     loadFromFile,
     loadFromServer,
@@ -481,7 +583,17 @@ export const useConferenceStore = defineStore('conference', () => {
     updateNote,
     isNoteChanged,
     clearNoteChanges,
+    clearAllChanges,
     listNoteChanges,
+    // Bemerkungen
+    getBemerkungenValue,
+    updateBemerkungenValue,
+    isBemerkungChanged,
+    // Fehlstunden
+    getFehlstundenValue,
+    updateFehlstundenValue,
+    isFehlstundenChanged,
+    // Reset
     reset,
   }
 })
