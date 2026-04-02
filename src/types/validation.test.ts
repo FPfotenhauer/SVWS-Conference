@@ -190,4 +190,17 @@ describe('validateEnmExport', () => {
     const result = validateEnmExport(data)
     expect(result.schueler).toHaveLength(0)
   })
+
+  it('akzeptiert v2-Lerngruppen mit idsLehrer und normalisiert auf lehrerID', () => {
+    const data = makeMinimalExport()
+    const lg = data.lerngruppen[0] as unknown as Record<string, unknown>
+    delete lg['lehrerID']
+    lg['idsLehrer'] = [42]
+
+    const result = validateEnmExport(data)
+    const firstLerngruppe = result.lerngruppen[0] as unknown as Record<string, unknown>
+
+    expect(Array.isArray(firstLerngruppe['lehrerID'])).toBe(true)
+    expect(firstLerngruppe['lehrerID']).toEqual([42])
+  })
 })

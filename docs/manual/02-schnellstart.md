@@ -1,3 +1,5 @@
+<img src="../assets/svws-konferenz-logo-slim.svg" alt="SVWS Logo (schmal)" style="float:left; margin-right:12px; height:60px"> <br>
+
 # Schnellstart
 
 [Startseite](../index.md) | [Inhaltsverzeichnis](00-inhaltsverzeichnis.md) | [Einleitung](01-einleitung.md)

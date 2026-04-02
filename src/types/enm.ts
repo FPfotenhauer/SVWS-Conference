@@ -100,7 +100,8 @@ export interface EnmLerngruppe {
   bezeichnung: string     // z.B. "D-LK2"
   kursartKuerzel: Kursart | null
   bilingualeSprache: string | null
-  lehrerID: number[]
+  lehrerID?: number[]
+  idsLehrer?: number[]
   wochenstunden: number
 }
 
@@ -155,6 +156,8 @@ export interface EnmLeistungsdaten {
   fachbezogeneBemerkungen: string | null
   tsFachbezogeneBemerkungen: string
   neueZuweisungKursart: string | null
+  tsNeueZuweisungKursart?: string | null
+  istDifferenzierungkursErweitert?: boolean
   istGemahnt: boolean
   tsIstGemahnt: string
   mahndatum: string | null
@@ -207,13 +210,16 @@ export interface EnmExport {
   schuljahr: number
   anzahlAbschnitte: number      // 2 = Halbjahre, 4 = Quartale
   aktuellerAbschnitt: number
-  publicKey: string | null
+  publicKey?: string | null
   lehrerID: unknown            // Vom Server uneinheitlich geliefert; aktuell im UI ungenutzt
-  fehlstundenEingabe: boolean
-  fehlstundenSIFachbezogen: boolean
-  fehlstundenSIIFachbezogen: boolean
+  fehlstundenEingabe?: boolean
+  fehlstundenSIFachbezogen?: boolean
+  fehlstundenSIIFachbezogen?: boolean
   schulform: string             // z.B. "GY", "GE", "RS"
-  mailadresse: string | null
+  mailadresse?: string | null
+  abteilungen?: unknown[]
+  idSchulleitung?: number | null
+  idSchulleitungStv?: number | null
   noten: EnmNote[]
   foerderschwerpunkte: unknown[]
   jahrgaenge: EnmJahrgang[]

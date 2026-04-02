@@ -1,7 +1,8 @@
 import { createApp, defineComponent, h, onUnmounted, ref } from 'vue'
 import { createPinia } from 'pinia'
+import { jsPDF } from 'jspdf'
 import { useConferenceStore } from './stores/conferenceStore'
-import type { KonferenzSchueler, Notenkuerzel } from './types/enm'
+import type { KonferenzSchueler, Notenkuerzel, EnmNote } from './types/enm'
 import './style.css'
 
 type SvwsDefaults = {
@@ -205,6 +206,10 @@ const App = defineComponent({
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const hideNotTaughtInLupe = ref(true)
     const timerModalOpen = ref(false)
+    const changesModalOpen = ref(false)
+    const logoutConfirmOpen = ref(false)
+    const exportConfirmOpen = ref(false)
+    const exportRunning = ref(false)
     const timerTotalSeconds = ref(300)
     const timerRemainingSeconds = ref(300)
     const timerRunning = ref(false)
@@ -475,8 +480,125 @@ const App = defineComponent({
       selectedSchuelerId.value = null
       activeMode.value = 'klasse'
       lupeOpen.value = false
+      changesModalOpen.value = false
+      logoutConfirmOpen.value = false
+      exportConfirmOpen.value = false
       editingCell.value = null
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
+    }
+
+    function requestLogout() {
+      if (store.hasAnyChanges) {
+        logoutConfirmOpen.value = true
+        return
+      }
+      logout()
+    }
+
+    function printChangeLog(logLines: string[]) {
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const margin = 15
+      const maxLineWidth = pageWidth - margin * 2
+      const lineHeight = 5.5
+      let y = margin
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('Aenderungslog', margin, y)
+      y += 8
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+
+      for (const rawLine of logLines) {
+        const wrappedLines = doc.splitTextToSize(rawLine, maxLineWidth) as string[]
+        for (const line of wrappedLines) {
+          if (y > pageHeight - margin) {
+            doc.addPage()
+            y = margin
+          }
+          doc.text(line, margin, y)
+          y += lineHeight
+        }
+      }
+
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      doc.save(`aenderungslog-${stamp}.pdf`)
+    }
+
+    function requestExport() {
+      if (!store.hasAnyChanges) {
+        status.value = 'Es sind keine Änderungen zum Export vorhanden.'
+        return
+      }
+
+      exportConfirmOpen.value = true
+    }
+
+    async function exportChanges() {
+      exportConfirmOpen.value = false
+
+      exportRunning.value = true
+      try {
+        const sourceLabel = store.dataSource === 'server'
+          ? 'Server'
+          : store.dataSource === 'file'
+            ? 'Datei-Upload'
+            : 'unbekannt'
+        status.value = `Export gestartet (Quelle: ${sourceLabel})...`
+
+        if (store.dataSource === 'server') {
+          const hasRuntimeServerConfig = !!serverUrl.value.trim() && !!serverSchema.value.trim() && !!username.value.trim()
+          await store.importPatchedExportToServer(
+            hasRuntimeServerConfig
+              ? {
+                baseUrl: serverUrl.value.trim(),
+                schema: serverSchema.value.trim(),
+                username: username.value.trim(),
+                password: password.value,
+                trustSelfSigned: trustSelfSigned.value,
+              }
+              : undefined,
+          )
+          status.value = 'Änderungen wurden an den SVWS-Server übertragen.'
+          return
+        }
+
+        if (store.dataSource === 'file') {
+          const blob = await store.createPatchedExportGzip()
+          if (blob.size === 0) {
+            throw new Error('Die erzeugte Exportdatei ist leer.')
+          }
+          const file = new File([blob], 'enm.json.gz', { type: 'application/gzip' })
+          const url = URL.createObjectURL(file)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = file.name
+          a.rel = 'noopener'
+          a.style.display = 'none'
+          document.body.appendChild(a)
+
+          // Primary path: native anchor download
+          a.click()
+
+          window.setTimeout(() => {
+            URL.revokeObjectURL(url)
+            a.remove()
+          }, 10000)
+          status.value = `Geänderte enm.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
+          return
+        }
+
+        throw new Error('Datenquelle unbekannt. Bitte ENM-Daten erneut laden.')
+      } catch (error) {
+        status.value = error instanceof Error
+          ? `Export fehlgeschlagen: ${error.message}`
+          : 'Export fehlgeschlagen.'
+      } finally {
+        exportRunning.value = false
+      }
     }
 
     return () => {
@@ -525,14 +647,19 @@ const App = defineComponent({
         }
       }
 
-      const fehlstundenGesamt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamt
-      const fehlstundenUnentschuldigt = selectedSchueler?.schueler.lernabschnitt.fehlstundenGesamtUnentschuldigt
-      const bemerkungen = selectedSchueler?.schueler.bemerkungen
-      const remarkCards = [
-        { label: 'Arbeits- und Sozialverhalten', value: bemerkungen?.ASV },
-        { label: 'Ausserunterrichtliches Engagement', value: bemerkungen?.AUE },
-        { label: 'Zeugnisbemerkungen', value: bemerkungen?.ZB },
-      ]
+      const fehlstundenGesamt = selectedSchueler
+        ? store.getFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamt')
+        : undefined
+      const fehlstundenUnentschuldigt = selectedSchueler
+        ? store.getFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt')
+        : undefined
+      const remarkCards = selectedSchueler
+        ? [
+          { label: 'Arbeits- und Sozialverhalten', field: 'ASV' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'ASV') },
+          { label: 'Ausserunterrichtliches Engagement', field: 'AUE' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'AUE') },
+          { label: 'Zeugnisbemerkungen', field: 'ZB' as const, value: store.getBemerkungenValue(selectedSchueler.schueler.id, 'ZB') },
+        ]
+        : []
 
       const lupeCards = selectedSchueler && klasse
         ? klasse.faecher.flatMap(fach => {
@@ -543,10 +670,23 @@ const App = defineComponent({
             return []
           }
           const tone = lupeTone(note)
+          const availableNotes = store.enmExport?.noten ?? []
           return [h('div', { class: `lupe-fach ${tone.frame}` }, [
             h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
             h('div', { class: 'lupe-fach-fn' }, fach.bezeichnung?.trim() || fach.kuerzelAnzeige || fach.kuerzel),
-            h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
+            lgId
+              ? h('select', {
+                class: `lupe-fach-note-select ${tone.note}`,
+                value: note ?? '',
+                onChange: (event: Event) => {
+                  const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                  store.updateNote(selectedSchueler.schueler.id, lgId, newNote || null)
+                },
+              }, [
+                h('option', { value: '' }, '–'),
+                ...availableNotes.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
+              ])
+              : h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
           ])]
         })
@@ -554,6 +694,69 @@ const App = defineComponent({
 
       const timerLabel = formatTimer(timerRemainingSeconds.value)
       const showTimerChip = timerRunning.value || timerRemainingSeconds.value !== timerTotalSeconds.value || timerFinishedFlash.value
+
+      const schuelerById = new Map((store.enmExport?.schueler ?? []).map(item => [item.id, item]))
+      const lerngruppeById = new Map((store.enmExport?.lerngruppen ?? []).map(item => [item.id, item]))
+      const fachById = new Map((store.enmExport?.faecher ?? []).map(item => [item.id, item]))
+
+      const noteChanges = store.listNoteChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+        const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+        return {
+          typ: 'Note',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`,
+          alt: change.originalNote ?? '–',
+          neu: change.newNote ?? '–',
+        }
+      })
+
+      const bemerkungLabels = {
+        ASV: 'Arbeits- und Sozialverhalten',
+        AUE: 'Ausserunterrichtliches Engagement',
+        ZB: 'Zeugnisbemerkungen',
+      } as const
+
+      const bemerkungChanges = store.listBemerkungChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        return {
+          typ: 'Bemerkung',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: bemerkungLabels[change.field],
+          alt: change.originalValue?.trim() || '–',
+          neu: change.newValue?.trim() || '–',
+        }
+      })
+
+      const fehlstundenLabels = {
+        fehlstundenGesamt: 'Fehlstunden gesamt',
+        fehlstundenGesamtUnentschuldigt: 'Fehlstunden unentschuldigt',
+      } as const
+
+      const fehlstundenChanges = store.listFehlstundenChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        return {
+          typ: 'Fehlstunden',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: fehlstundenLabels[change.field],
+          alt: String(change.originalValue),
+          neu: String(change.newValue),
+        }
+      })
+
+      const allChanges = [...noteChanges, ...fehlstundenChanges, ...bemerkungChanges]
+      const exportTargetLabel = store.dataSource === 'server'
+        ? 'SVWS-Server (Import v2)'
+        : store.dataSource === 'file'
+          ? 'Download als enm.changed.json.gz'
+          : 'Unbekannte Datenquelle'
+      const printableLogLines = [
+        `Aenderungslog vom ${new Date().toLocaleString('de-DE')}`,
+        `Gesamt: ${allChanges.length} Aenderungen`,
+        '',
+        ...allChanges.map((item, index) => `${index + 1}. [${item.typ}] ${item.schuelerName} | ${item.feld} | Alt: ${item.alt} | Neu: ${item.neu}`),
+      ]
 
       return h('main', {
         class: inConference
@@ -722,7 +925,7 @@ const App = defineComponent({
                 onClick: () => {
                   lupeOpen.value = !lupeOpen.value
                 },
-              }, 'Schuelerlupe'),
+              }, 'Schülerlupe'),
               h('button', {
                 class: `icon-btn ${timerRunning.value ? 'timer-on' : ''} ${timerFinishedFlash.value ? 'timer-finished' : ''}`.trim(),
                 onClick: () => {
@@ -738,13 +941,12 @@ const App = defineComponent({
               h('button', {
                 class: 'icon-btn',
                 onClick: () => {
-                  store.clearNoteChanges()
+                  changesModalOpen.value = true
                 },
-                disabled: !store.hasNoteChanges,
-              }, `Aenderungen verwerfen (${store.noteChangeCount})`),
+              }, `Änderungen (${store.totalChangeCount})`),
               h('button', {
                 class: 'icon-btn icon-btn-logout',
-                onClick: logout,
+                onClick: requestLogout,
                 disabled: store.loading,
               }, 'Logout'),
             ]),
@@ -863,14 +1065,52 @@ const App = defineComponent({
                   h('div', { class: 'lupe-stats-row' }, [
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, avg)]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${gradedCount} / ${klasse?.faecher.length ?? 0}`)]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenGesamt ?? '–'))]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, String(fehlstundenUnentschuldigt ?? '–'))]),
-                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.noteChangeCount))]),
+                    selectedSchueler
+                      ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+                        h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'),
+                        h('input', {
+                          type: 'number',
+                          class: 'lupe-stat-input',
+                          value: fehlstundenGesamt ?? 0,
+                          min: '0',
+                          onInput: (event: Event) => {
+                            const value = Number((event.target as HTMLInputElement).value)
+                            store.updateFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamt', value)
+                          },
+                        }),
+                      ])
+                      : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, '–')]),
+                    selectedSchueler
+                      ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+                        h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'),
+                        h('input', {
+                          type: 'number',
+                          class: 'lupe-stat-input',
+                          value: fehlstundenUnentschuldigt ?? 0,
+                          min: '0',
+                          onInput: (event: Event) => {
+                            const value = Number((event.target as HTMLInputElement).value)
+                            store.updateFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt', value)
+                          },
+                        }),
+                      ])
+                      : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
+                    h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.totalChangeCount))]),
                   ]),
                   h('div', { class: 'lupe-remarks-wrap' }, [
                     ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
                       h('h4', { class: 'lupe-remark-label' }, card.label),
-                      h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
+                      selectedSchueler
+                        ? h('textarea', {
+                          class: 'lupe-remark-textarea',
+                          value: card.value?.trim() ?? '',
+                          placeholder: '(Leer lassen für keine Bemerkung)',
+                          onInput: (event: Event) => {
+                            const value = (event.target as HTMLTextAreaElement).value.trim()
+                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
+                          },
+                        })
+                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
                     ])),
                   ]),
                   h('div', { class: 'lupe-grid-wrap' }, [
@@ -930,6 +1170,142 @@ const App = defineComponent({
                       class: `timer-btn primary ${timerRunning.value ? 'stop' : ''}`.trim(),
                       onClick: toggleTimer,
                     }, timerRunning.value ? 'Pause' : (timerRemainingSeconds.value < timerTotalSeconds.value ? 'Weiter' : 'Starten')),
+                  ]),
+                ]),
+              ])
+              : null,
+            changesModalOpen.value
+              ? h('div', {
+                class: 'changes-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    changesModalOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'changes-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      changesModalOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'changes-modal-title' }, `Änderungen (${allChanges.length})`),
+                  allChanges.length
+                    ? h('div', { class: 'changes-list-wrap' }, [
+                      h('table', { class: 'changes-table' }, [
+                        h('thead', [
+                          h('tr', [
+                            h('th', 'Typ'),
+                            h('th', 'Schueler'),
+                            h('th', 'Feld'),
+                            h('th', 'Alt'),
+                            h('th', 'Neu'),
+                          ]),
+                        ]),
+                        h('tbody', allChanges.map(item => h('tr', [
+                          h('td', item.typ),
+                          h('td', item.schuelerName),
+                          h('td', item.feld),
+                          h('td', item.alt),
+                          h('td', item.neu),
+                        ]))),
+                      ]),
+                    ])
+                    : h('p', { class: 'changes-empty' }, 'Noch keine Änderungen vorhanden.'),
+                  h('div', { class: 'changes-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        printChangeLog(printableLogLines)
+                      },
+                      disabled: allChanges.length === 0,
+                    }, 'Log drucken'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        requestExport()
+                      },
+                      disabled: exportRunning.value,
+                    }, exportRunning.value ? 'Exportiere...' : 'Export'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        store.clearAllChanges()
+                      },
+                      disabled: allChanges.length === 0,
+                    }, 'Änderungen verwerfen'),
+                  ]),
+                ]),
+              ])
+              : null,
+            exportConfirmOpen.value
+              ? h('div', {
+                class: 'export-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    exportConfirmOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'export-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      exportConfirmOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'export-modal-title' }, 'Export bestätigen'),
+                  h('p', { class: 'export-modal-text' }, `Die Änderungen werden exportiert: ${exportTargetLabel}.`),
+                  h('p', { class: 'export-modal-text' }, 'Möchten Sie den Export jetzt wirklich starten?'),
+                  h('div', { class: 'export-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        exportConfirmOpen.value = false
+                      },
+                    }, 'Abbrechen'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        void exportChanges()
+                      },
+                    }, 'Export starten'),
+                  ]),
+                ]),
+              ])
+              : null,
+            logoutConfirmOpen.value
+              ? h('div', {
+                class: 'logout-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    logoutConfirmOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'logout-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      logoutConfirmOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'logout-modal-title' }, 'Änderungen vorhanden'),
+                  h('p', { class: 'logout-modal-text' }, 'Es gibt noch nicht gesicherte Änderungen. Möchten Sie sich wirklich abmelden und diese Änderungen verwerfen?'),
+                  h('div', { class: 'logout-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        logoutConfirmOpen.value = false
+                      },
+                    }, 'Abbrechen'),
+                    h('button', {
+                      class: 'icon-btn icon-btn-logout',
+                      onClick: () => {
+                        logout()
+                      },
+                    }, 'Trotzdem abmelden'),
                   ]),
                 ]),
               ])
