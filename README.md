@@ -52,6 +52,7 @@ Verbindungsdaten in der Server-Kachel:
 Der Abruf erfolgt gegen einen der folgenden Endpunkte (je nach SVWS-Konfiguration):
 
 ```
+GET {SVWS-Basis-URL}/db/{schema}/enm/v2/alle/gzip
 GET {SVWS-Basis-URL}/db/{schema}/enm/v1/alle/gzip
 GET {SVWS-Basis-URL}/api/v1/schule/{schema}/export/enm
 GET {SVWS-Basis-URL}/api/v1/schule/export/enm?schema={schema}

@@ -13,6 +13,10 @@ type ProxyPayload = {
   trustSelfSigned: boolean
 }
 
+type ImportPayload = ProxyPayload & {
+  gzipBase64: string
+}
+
 type AlivePayload = {
   baseUrl: string
   trustSelfSigned: boolean
@@ -45,6 +49,7 @@ function buildCandidateUrls(baseUrl: string, schema: string): string[] {
   const normalized = normalizeBaseUrl(baseUrl)
   const encodedSchema = encodeURIComponent(schema)
   return [
+    `${normalized}/db/${encodedSchema}/enm/v2/alle/gzip`,
     `${normalized}/db/${encodedSchema}/enm/v1/alle/gzip`,
     `${normalized}/api/v1/schule/${encodedSchema}/export/enm`,
     `${normalized}/api/v1/schule/export/enm?schema=${encodedSchema}`,
@@ -52,7 +57,13 @@ function buildCandidateUrls(baseUrl: string, schema: string): string[] {
   ]
 }
 
-function requestBuffer(targetUrl: string, trustSelfSigned: boolean, headers: Record<string, string>): Promise<{
+function requestBuffer(
+  targetUrl: string,
+  trustSelfSigned: boolean,
+  headers: Record<string, string>,
+  method: 'GET' | 'POST' = 'GET',
+  body?: Buffer,
+): Promise<{
   statusCode: number
   statusMessage: string
   headers: http.IncomingHttpHeaders
@@ -67,7 +78,7 @@ function requestBuffer(targetUrl: string, trustSelfSigned: boolean, headers: Rec
       hostname: parsed.hostname,
       port: parsed.port,
       path: `${parsed.pathname}${parsed.search}`,
-      method: 'GET',
+      method,
       headers,
       rejectUnauthorized: isHttps ? !trustSelfSigned : undefined,
     }
@@ -86,6 +97,9 @@ function requestBuffer(targetUrl: string, trustSelfSigned: boolean, headers: Rec
     })
 
     request.on('error', reject)
+    if (body) {
+      request.write(body)
+    }
     request.end()
   })
 }
@@ -105,6 +119,11 @@ function isProxyPayload(value: unknown): value is ProxyPayload {
     && typeof candidate.username === 'string'
     && typeof candidate.password === 'string'
     && typeof candidate.trustSelfSigned === 'boolean'
+}
+
+function isImportPayload(value: unknown): value is ImportPayload {
+  if (!isProxyPayload(value)) return false
+  return typeof (value as Partial<ImportPayload>).gzipBase64 === 'string'
 }
 
 export default defineConfig(({ mode }) => {
@@ -240,6 +259,74 @@ export default defineConfig(({ mode }) => {
               const upstreamMessage = lastResponse.body.toString('utf8').trim()
               sendJson(res, lastResponse.statusCode, {
                 error: `SVWS-Fehler ${lastResponse.statusCode} ${lastResponse.statusMessage}${upstreamMessage ? `: ${upstreamMessage}` : ''}`,
+              })
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unbekannter Proxy-Fehler'
+              sendJson(res, 502, { error: message })
+            }
+          })
+
+          server.middlewares.use('/api/svws/enm-import', async (req, res) => {
+            if (req.method !== 'POST') {
+              sendJson(res, 405, { error: 'Nur POST wird unterstützt.' })
+              return
+            }
+
+            try {
+              const raw = await readBody(req)
+              const parsed: unknown = JSON.parse(raw)
+
+              if (!isImportPayload(parsed)) {
+                sendJson(res, 400, { error: 'Ungültige Import-Parameter.' })
+                return
+              }
+
+              const payload = parsed
+              if (!payload.baseUrl.trim() || !payload.schema.trim() || !payload.username.trim()) {
+                sendJson(res, 400, { error: 'Server-URL, Schema und Benutzername sind erforderlich.' })
+                return
+              }
+
+              const basic = Buffer.from(`${payload.username}:${payload.password}`, 'utf8').toString('base64')
+              const authHeader = `Basic ${basic}`
+              const targetUrl = `${normalizeBaseUrl(payload.baseUrl)}/db/${encodeURIComponent(payload.schema)}/enm/v2/import/gzip`
+              const bodyBuffer = Buffer.from(payload.gzipBase64, 'base64')
+              const boundary = `----svwsconference${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`
+              const preamble = Buffer.from(
+                `--${boundary}\r\n` +
+                `Content-Disposition: form-data; name="data"; filename="enm.json.gz"\r\n` +
+                `Content-Type: application/gzip\r\n\r\n`,
+                'utf8',
+              )
+              const ending = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8')
+              const multipartBody = Buffer.concat([preamble, bodyBuffer, ending])
+
+              const upstream = await requestBuffer(
+                targetUrl,
+                payload.trustSelfSigned,
+                {
+                  'Authorization': authHeader,
+                  'Accept': '*/*',
+                  'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                  'Content-Length': String(multipartBody.byteLength),
+                },
+                'POST',
+                multipartBody,
+              )
+
+              if (upstream.statusCode >= 200 && upstream.statusCode < 300) {
+                const contentType = upstream.headers['content-type'] ?? 'application/json; charset=utf-8'
+                res.writeHead(200, {
+                  'Content-Type': Array.isArray(contentType) ? contentType[0] : contentType,
+                  'Cache-Control': 'no-store',
+                })
+                res.end(upstream.body)
+                return
+              }
+
+              const upstreamMessage = upstream.body.toString('utf8').trim()
+              sendJson(res, upstream.statusCode, {
+                error: `SVWS-Import-Fehler ${upstream.statusCode} ${upstream.statusMessage}${upstreamMessage ? `: ${upstreamMessage}` : ''}`,
               })
             } catch (error) {
               const message = error instanceof Error ? error.message : 'Unbekannter Proxy-Fehler'

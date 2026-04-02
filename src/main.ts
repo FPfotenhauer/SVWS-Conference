@@ -1,5 +1,6 @@
 import { createApp, defineComponent, h, onUnmounted, ref } from 'vue'
 import { createPinia } from 'pinia'
+import { jsPDF } from 'jspdf'
 import { useConferenceStore } from './stores/conferenceStore'
 import type { KonferenzSchueler, Notenkuerzel, EnmNote } from './types/enm'
 import './style.css'
@@ -206,6 +207,9 @@ const App = defineComponent({
     const hideNotTaughtInLupe = ref(true)
     const timerModalOpen = ref(false)
     const changesModalOpen = ref(false)
+    const logoutConfirmOpen = ref(false)
+    const exportConfirmOpen = ref(false)
+    const exportRunning = ref(false)
     const timerTotalSeconds = ref(300)
     const timerRemainingSeconds = ref(300)
     const timerRunning = ref(false)
@@ -477,29 +481,124 @@ const App = defineComponent({
       activeMode.value = 'klasse'
       lupeOpen.value = false
       changesModalOpen.value = false
+      logoutConfirmOpen.value = false
+      exportConfirmOpen.value = false
       editingCell.value = null
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
     }
 
+    function requestLogout() {
+      if (store.hasAnyChanges) {
+        logoutConfirmOpen.value = true
+        return
+      }
+      logout()
+    }
+
     function printChangeLog(logLines: string[]) {
-      if (typeof window === 'undefined') return
-      const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
-      if (!printWindow) {
-        status.value = 'Popup blockiert. Bitte Popups fuer diese Seite erlauben.'
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const margin = 15
+      const maxLineWidth = pageWidth - margin * 2
+      const lineHeight = 5.5
+      let y = margin
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('Aenderungslog', margin, y)
+      y += 8
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+
+      for (const rawLine of logLines) {
+        const wrappedLines = doc.splitTextToSize(rawLine, maxLineWidth) as string[]
+        for (const line of wrappedLines) {
+          if (y > pageHeight - margin) {
+            doc.addPage()
+            y = margin
+          }
+          doc.text(line, margin, y)
+          y += lineHeight
+        }
+      }
+
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      doc.save(`aenderungslog-${stamp}.pdf`)
+    }
+
+    function requestExport() {
+      if (!store.hasAnyChanges) {
+        status.value = 'Es sind keine Änderungen zum Export vorhanden.'
         return
       }
 
-      const content = logLines
-        .map(line => line
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;'))
-        .join('\n')
+      exportConfirmOpen.value = true
+    }
 
-      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Aenderungslog</title><style>body{font-family:Manrope,Segoe UI,sans-serif;margin:24px;color:#1f2940}h1{margin:0 0 12px}pre{white-space:pre-wrap;line-height:1.45;font-size:13px}</style></head><body><h1>Aenderungslog</h1><pre>${content}</pre></body></html>`)
-      printWindow.document.close()
-      printWindow.focus()
-      printWindow.print()
+    async function exportChanges() {
+      exportConfirmOpen.value = false
+
+      exportRunning.value = true
+      try {
+        const sourceLabel = store.dataSource === 'server'
+          ? 'Server'
+          : store.dataSource === 'file'
+            ? 'Datei-Upload'
+            : 'unbekannt'
+        status.value = `Export gestartet (Quelle: ${sourceLabel})...`
+
+        if (store.dataSource === 'server') {
+          const hasRuntimeServerConfig = !!serverUrl.value.trim() && !!serverSchema.value.trim() && !!username.value.trim()
+          await store.importPatchedExportToServer(
+            hasRuntimeServerConfig
+              ? {
+                baseUrl: serverUrl.value.trim(),
+                schema: serverSchema.value.trim(),
+                username: username.value.trim(),
+                password: password.value,
+                trustSelfSigned: trustSelfSigned.value,
+              }
+              : undefined,
+          )
+          status.value = 'Änderungen wurden an den SVWS-Server übertragen.'
+          return
+        }
+
+        if (store.dataSource === 'file') {
+          const blob = await store.createPatchedExportGzip()
+          if (blob.size === 0) {
+            throw new Error('Die erzeugte Exportdatei ist leer.')
+          }
+          const file = new File([blob], 'enm.json.gz', { type: 'application/gzip' })
+          const url = URL.createObjectURL(file)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = file.name
+          a.rel = 'noopener'
+          a.style.display = 'none'
+          document.body.appendChild(a)
+
+          // Primary path: native anchor download
+          a.click()
+
+          window.setTimeout(() => {
+            URL.revokeObjectURL(url)
+            a.remove()
+          }, 10000)
+          status.value = `Geänderte enm.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
+          return
+        }
+
+        throw new Error('Datenquelle unbekannt. Bitte ENM-Daten erneut laden.')
+      } catch (error) {
+        status.value = error instanceof Error
+          ? `Export fehlgeschlagen: ${error.message}`
+          : 'Export fehlgeschlagen.'
+      } finally {
+        exportRunning.value = false
+      }
     }
 
     return () => {
@@ -647,6 +746,11 @@ const App = defineComponent({
       })
 
       const allChanges = [...noteChanges, ...fehlstundenChanges, ...bemerkungChanges]
+      const exportTargetLabel = store.dataSource === 'server'
+        ? 'SVWS-Server (Import v2)'
+        : store.dataSource === 'file'
+          ? 'Download als enm.changed.json.gz'
+          : 'Unbekannte Datenquelle'
       const printableLogLines = [
         `Aenderungslog vom ${new Date().toLocaleString('de-DE')}`,
         `Gesamt: ${allChanges.length} Aenderungen`,
@@ -842,7 +946,7 @@ const App = defineComponent({
               }, `Änderungen (${store.totalChangeCount})`),
               h('button', {
                 class: 'icon-btn icon-btn-logout',
-                onClick: logout,
+                onClick: requestLogout,
                 disabled: store.loading,
               }, 'Logout'),
             ]),
@@ -1120,16 +1224,88 @@ const App = defineComponent({
                     h('button', {
                       class: 'icon-btn',
                       onClick: () => {
-                        status.value = 'Export folgt in einem naechsten Schritt.'
+                        requestExport()
                       },
-                    }, 'Export'),
+                      disabled: exportRunning.value,
+                    }, exportRunning.value ? 'Exportiere...' : 'Export'),
                     h('button', {
                       class: 'icon-btn',
                       onClick: () => {
                         store.clearAllChanges()
                       },
                       disabled: allChanges.length === 0,
-                    }, 'Aenderungen verwerfen'),
+                    }, 'Änderungen verwerfen'),
+                  ]),
+                ]),
+              ])
+              : null,
+            exportConfirmOpen.value
+              ? h('div', {
+                class: 'export-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    exportConfirmOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'export-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      exportConfirmOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'export-modal-title' }, 'Export bestätigen'),
+                  h('p', { class: 'export-modal-text' }, `Die Änderungen werden exportiert: ${exportTargetLabel}.`),
+                  h('p', { class: 'export-modal-text' }, 'Möchten Sie den Export jetzt wirklich starten?'),
+                  h('div', { class: 'export-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        exportConfirmOpen.value = false
+                      },
+                    }, 'Abbrechen'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        void exportChanges()
+                      },
+                    }, 'Export starten'),
+                  ]),
+                ]),
+              ])
+              : null,
+            logoutConfirmOpen.value
+              ? h('div', {
+                class: 'logout-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    logoutConfirmOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'logout-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      logoutConfirmOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'logout-modal-title' }, 'Änderungen vorhanden'),
+                  h('p', { class: 'logout-modal-text' }, 'Es gibt noch nicht gesicherte Änderungen. Möchten Sie sich wirklich abmelden und diese Änderungen verwerfen?'),
+                  h('div', { class: 'logout-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        logoutConfirmOpen.value = false
+                      },
+                    }, 'Abbrechen'),
+                    h('button', {
+                      class: 'icon-btn icon-btn-logout',
+                      onClick: () => {
+                        logout()
+                      },
+                    }, 'Trotzdem abmelden'),
                   ]),
                 ]),
               ])

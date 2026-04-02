@@ -152,7 +152,16 @@ function validateLerngruppe(raw: unknown, index: number): asserts raw is EnmLern
   requireNumber(raw, 'id', ctx)
   requireNumber(raw, 'fachID', ctx)
   requireString(raw, 'bezeichnung', ctx)
-  requireArray(raw, 'lehrerID', ctx)
+  if (Array.isArray(raw['lehrerID'])) {
+    return
+  }
+
+  if (Array.isArray(raw['idsLehrer'])) {
+    raw['lehrerID'] = raw['idsLehrer']
+    return
+  }
+
+  throw new TypeError(`${ctx}: Feld "lehrerID" muss ein Array sein, ist aber: ${typeof raw['lehrerID']}`)
 }
 
 function validateFach(raw: unknown, index: number): asserts raw is EnmFach {

@@ -7,6 +7,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { gzipSync } from 'fflate'
 import { parseEnmGzip } from '../parser/enmParser'
 import type {
   EnmExport,
@@ -27,6 +28,8 @@ type ServerConnectionParams = {
   password: string
   trustSelfSigned: boolean
 }
+
+type DataSource = 'server' | 'file' | null
 
 type NoteChange = {
   schuelerId: number
@@ -64,11 +67,62 @@ function buildEnmCandidateUrls(baseUrl: string, schema: string): string[] {
     : `https://${baseUrl.trim().replace(/\/+$/, '')}`
   const encodedSchema = encodeURIComponent(schema)
   return [
+    `${normalized}/db/${encodedSchema}/enm/v2/alle/gzip`,
     `${normalized}/db/${encodedSchema}/enm/v1/alle/gzip`,
     `${normalized}/api/v1/schule/${encodedSchema}/export/enm`,
     `${normalized}/api/v1/schule/export/enm?schema=${encodedSchema}`,
     `${normalized}/api/v1/schule/export/enm`,
   ]
+}
+
+function buildEnmImportUrl(baseUrl: string, schema: string): string {
+  const normalized = /^https?:\/\//i.test(baseUrl)
+    ? baseUrl.trim().replace(/\/+$/, '')
+    : `https://${baseUrl.trim().replace(/\/+$/, '')}`
+  const encodedSchema = encodeURIComponent(schema)
+  return `${normalized}/db/${encodedSchema}/enm/v2/import/gzip`
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+}
+
+function formatSvwsTimestamp(date: Date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.0`
+}
+
+function normalizeGzipBytes(input: Uint8Array): Uint8Array {
+  const normalized = new Uint8Array(input.byteLength)
+  normalized.set(input)
+
+  // Match the original SVWS export header more closely:
+  // mtime = 0, xfl = 0, os = 255 (unknown)
+  if (normalized.byteLength >= 10 && normalized[0] === 0x1f && normalized[1] === 0x8b && normalized[2] === 0x08) {
+    normalized[4] = 0
+    normalized[5] = 0
+    normalized[6] = 0
+    normalized[7] = 0
+    normalized[8] = 0
+    normalized[9] = 255
+  }
+
+  return normalized
+}
+
+function toBlobBuffer(bytes: Uint8Array): ArrayBuffer {
+  const plain = new Uint8Array(bytes.byteLength)
+  plain.set(bytes)
+  return plain.buffer as ArrayBuffer
 }
 
 function buildAliveUrl(baseUrl: string): string {
@@ -136,6 +190,8 @@ export const useConferenceStore = defineStore('conference', () => {
   const noteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const bemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fehlstundenChanges = ref<Map<string, number>>(new Map())
+  const dataSource = ref<DataSource>(null)
+  const lastServerConnection = ref<ServerConnectionParams | null>(null)
 
   // ---------------------------------------------------------------------------
   // Lookup-Maps (intern, aus dem Export aufgebaut)
@@ -271,7 +327,7 @@ export const useConferenceStore = defineStore('conference', () => {
     return {
       lerngruppe: lg,
       fach,
-      lehrer: lg.lehrerID
+      lehrer: (lg.lehrerID ?? lg.idsLehrer ?? [])
         .map(id => lehrerById.value.get(id))
         .filter((l): l is EnmLehrer => l !== undefined),
       schueler: schuelerDerLerngruppe,
@@ -340,6 +396,152 @@ export const useConferenceStore = defineStore('conference', () => {
     noteChanges.value.clear()
     bemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
+  }
+
+  function buildPatchedExport(): EnmExport | null {
+    if (!enmExport.value) return null
+
+    const patched = JSON.parse(JSON.stringify(enmExport.value)) as EnmExport
+    const tsNow = formatSvwsTimestamp()
+
+    for (const lerngruppe of patched.lerngruppen) {
+      if (Array.isArray(lerngruppe.idsLehrer)) {
+        delete lerngruppe.lehrerID
+        continue
+      }
+
+      if (Array.isArray(lerngruppe.lehrerID)) {
+        lerngruppe.idsLehrer = [...lerngruppe.lehrerID]
+        delete lerngruppe.lehrerID
+      }
+    }
+
+    for (const change of listNoteChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === change.lerngruppeId)
+      if (!leistung) continue
+      leistung.note = change.newNote
+      leistung.tsNote = tsNow
+    }
+
+    for (const change of listBemerkungChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      schueler.bemerkungen[change.field] = change.newValue
+      const tsField = `ts${change.field}` as 'tsASV' | 'tsAUE' | 'tsZB'
+      schueler.bemerkungen[tsField] = tsNow
+    }
+
+    for (const change of listFehlstundenChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      schueler.lernabschnitt[change.field] = change.newValue
+      if (change.field === 'fehlstundenGesamt') {
+        schueler.lernabschnitt.tsFehlstundenGesamt = tsNow
+      } else {
+        schueler.lernabschnitt.tsFehlstundenGesamtUnentschuldigt = tsNow
+      }
+    }
+
+    return patched
+  }
+
+  async function gzipText(text: string): Promise<Blob> {
+    // Prefer native gzip output when available; this tends to match server expectations best.
+    if (typeof CompressionStream !== 'undefined') {
+      const source = new Blob([text], { type: 'application/json;charset=utf-8' }).stream()
+      const compressed = source.pipeThrough(new CompressionStream('gzip'))
+      const blob = await new Response(compressed).blob()
+      const normalized = normalizeGzipBytes(new Uint8Array(await blob.arrayBuffer()))
+      return new Blob([toBlobBuffer(normalized)], { type: 'application/gzip' })
+    }
+
+    const bytes = new TextEncoder().encode(text)
+    const gz = normalizeGzipBytes(gzipSync(bytes))
+    return new Blob([toBlobBuffer(gz)], { type: 'application/gzip' })
+  }
+
+  async function createPatchedExportGzip(): Promise<Blob> {
+    const patched = buildPatchedExport()
+    if (!patched) {
+      throw new Error('Es sind keine ENM-Daten geladen.')
+    }
+
+    const text = JSON.stringify(patched)
+    return gzipText(text)
+  }
+
+  async function importPatchedExportToServer(params?: ServerConnectionParams): Promise<void> {
+    const effective = params ?? lastServerConnection.value
+    if (!effective) {
+      throw new Error('Keine Serververbindung bekannt. Bitte erneut mit dem Server verbinden.')
+    }
+
+    const patched = buildPatchedExport()
+    if (!patched) {
+      throw new Error('Es sind keine ENM-Daten geladen.')
+    }
+
+    const text = JSON.stringify(patched)
+    const gzipBlob = await gzipText(text)
+    const gzipBytes = new Uint8Array(await gzipBlob.arrayBuffer())
+
+    let response: Response | null = null
+    let useDirectFallback = false
+
+    const runDirectImport = async (): Promise<Response> => {
+      const authHeader = `Basic ${encodeBasicAuth(effective.username, effective.password)}`
+      const multipart = new FormData()
+      multipart.append('data', gzipBlob, 'enm.json.gz')
+      return fetch(buildEnmImportUrl(effective.baseUrl, effective.schema), {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Accept': '*/*',
+        },
+        body: multipart,
+      })
+    }
+
+    try {
+      response = await fetch('/api/svws/enm-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8',
+        },
+        body: JSON.stringify({
+          ...effective,
+          gzipBase64: toBase64(gzipBytes),
+        }),
+      })
+    } catch {
+      useDirectFallback = true
+    }
+
+    if (!useDirectFallback && response && (response.status === 404 || response.status === 405)) {
+      useDirectFallback = true
+    }
+
+    if (useDirectFallback) {
+      response = await runDirectImport()
+    }
+
+    // Proxy can fail with malformed multipart in some environments.
+    // If so, retry once with a direct browser multipart upload.
+    if (response && !response.ok && !useDirectFallback) {
+      response = await runDirectImport()
+    }
+
+    if (!response || !response.ok) {
+      const details = response ? await readResponseError(response) : ''
+      const status = response ? `${response.status} ${response.statusText}` : 'keine Antwort'
+      throw new Error(`Import zum SVWS-Server fehlgeschlagen (${status}${details ? ` - ${details}` : ''}).`)
+    }
+
+    enmExport.value = patched
+    clearAllChanges()
   }
 
   function listNoteChanges(): NoteChange[] {
@@ -478,6 +680,8 @@ export const useConferenceStore = defineStore('conference', () => {
       noteChanges.value.clear()
       bemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
+      dataSource.value = 'file'
+      lastServerConnection.value = null
       // Erste Klasse vorauswählen
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -487,6 +691,8 @@ export const useConferenceStore = defineStore('conference', () => {
         ? err.message
         : 'Unbekannter Fehler beim Laden der Datei.'
       enmExport.value = null
+      dataSource.value = null
+      lastServerConnection.value = null
     } finally {
       loading.value = false
     }
@@ -560,6 +766,14 @@ export const useConferenceStore = defineStore('conference', () => {
       noteChanges.value.clear()
       bemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
+      dataSource.value = 'server'
+      lastServerConnection.value = {
+        baseUrl: params.baseUrl,
+        schema: params.schema,
+        username: params.username,
+        password: params.password,
+        trustSelfSigned: params.trustSelfSigned,
+      }
 
       if (enmExport.value.klassen.length > 0) {
         selectedKlasseId.value = availableKlassen.value[0]?.id ?? null
@@ -569,6 +783,8 @@ export const useConferenceStore = defineStore('conference', () => {
         ? err.message
         : 'Verbindung zum SVWS-Server fehlgeschlagen.'
       enmExport.value = null
+      dataSource.value = null
+      lastServerConnection.value = null
     } finally {
       loading.value = false
     }
@@ -591,6 +807,8 @@ export const useConferenceStore = defineStore('conference', () => {
     noteChanges.value.clear()
     bemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
+    dataSource.value = null
+    lastServerConnection.value = null
     error.value = null
     loading.value = false
   }
@@ -606,6 +824,7 @@ export const useConferenceStore = defineStore('conference', () => {
     selectedLerngruppeId,
     loading,
     error,
+    dataSource,
     // Getters
     availableKlassen,
     availableLerngruppen,
@@ -630,6 +849,8 @@ export const useConferenceStore = defineStore('conference', () => {
     isNoteChanged,
     clearNoteChanges,
     clearAllChanges,
+    createPatchedExportGzip,
+    importPatchedExportToServer,
     listNoteChanges,
     // Bemerkungen
     getBemerkungenValue,

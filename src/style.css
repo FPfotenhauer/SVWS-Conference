@@ -549,6 +549,28 @@ td.changed {
   padding: 1rem;
 }
 
+.logout-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  background: rgba(0, 0, 0, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.export-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 155;
+  background: rgba(0, 0, 0, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
 .timer-modal-bg.open {
   display: flex;
 }
@@ -557,10 +579,80 @@ td.changed {
   display: flex;
 }
 
+.logout-modal-bg.open {
+  display: flex;
+}
+
+.export-modal-bg.open {
+  display: flex;
+}
+
+.export-modal {
+  position: relative;
+  width: min(560px, 95vw);
+  background: #fff;
+  border: 1px solid #d3d1c7;
+  border-radius: 14px;
+  padding: 24px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-modal-title {
+  margin: 0;
+  font-size: 20px;
+  color: #2b2a27;
+}
+
+.export-modal-text {
+  margin: 0;
+  color: #4e4a43;
+  line-height: 1.45;
+}
+
+.export-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.logout-modal {
+  position: relative;
+  width: min(520px, 95vw);
+  background: #fff;
+  border: 1px solid #e6cccc;
+  border-radius: 14px;
+  padding: 24px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.logout-modal-title {
+  margin: 0;
+  font-size: 20px;
+  color: #8c2d2d;
+}
+
+.logout-modal-text {
+  margin: 0;
+  color: #4e3b3b;
+  line-height: 1.45;
+}
+
+.logout-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .changes-modal {
   position: relative;
-  width: min(1080px, 96vw);
-  max-height: 88vh;
+  width: min(1680px, 99vw);
+  height: min(94vh, 1400px);
   background: #fff;
   border: 1px solid #d3d1c7;
   border-radius: 14px;
@@ -577,6 +669,8 @@ td.changed {
 }
 
 .changes-list-wrap {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   border: 1px solid #e1ddd3;
   border-radius: 10px;
@@ -605,6 +699,9 @@ td.changed {
 
 .changes-empty {
   margin: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
   font-size: 14px;
   color: #5f5e5a;
 }
@@ -1106,8 +1203,18 @@ td.changed {
   }
 
   .changes-modal {
-    width: min(98vw, 1080px);
+    width: min(99vw, 1680px);
     max-height: 92vh;
+    padding: 20px 14px 14px;
+  }
+
+  .logout-modal {
+    width: min(96vw, 520px);
+    padding: 20px 14px 14px;
+  }
+
+  .export-modal {
+    width: min(96vw, 560px);
     padding: 20px 14px 14px;
   }
 
