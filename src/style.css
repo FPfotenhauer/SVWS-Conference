@@ -538,8 +538,81 @@ td.changed {
   padding: 1rem;
 }
 
+.changes-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(0, 0, 0, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
 .timer-modal-bg.open {
   display: flex;
+}
+
+.changes-modal-bg.open {
+  display: flex;
+}
+
+.changes-modal {
+  position: relative;
+  width: min(1080px, 96vw);
+  max-height: 88vh;
+  background: #fff;
+  border: 1px solid #d3d1c7;
+  border-radius: 14px;
+  padding: 24px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.changes-modal-title {
+  margin: 0;
+  font-size: 20px;
+  color: #2b2a27;
+}
+
+.changes-list-wrap {
+  overflow: auto;
+  border: 1px solid #e1ddd3;
+  border-radius: 10px;
+}
+
+.changes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.changes-table th,
+.changes-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #ece9e1;
+  text-align: left;
+  vertical-align: top;
+}
+
+.changes-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f7f5f0;
+  z-index: 1;
+}
+
+.changes-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #5f5e5a;
+}
+
+.changes-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .timer-modal {
@@ -674,7 +747,7 @@ td.changed {
 
 .lupe-modal {
   width: min(1600px, 98vw);
-  max-height: min(96vh, 1120px);
+  max-height: min(92vh, 1400px);
   background: #fff;
   border-radius: 12px;
   border: 1px solid #d3d1c7;
@@ -805,7 +878,7 @@ td.changed {
   border-radius: 10px;
   background: #fafaf8;
   padding: 10px 12px;
-  min-height: 110px;
+  min-height: 160px;
 }
 
 .lupe-remark-label {
@@ -936,7 +1009,7 @@ td.changed {
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 8px;
-  min-height: 80px;
+  min-height: 140px;
   resize: vertical;
   background: #fff;
 }
@@ -948,13 +1021,15 @@ td.changed {
 }
 
 .lupe-fach-note-select {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   text-align: center;
   border: 1px solid #d3d1c7;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   width: 100%;
+  min-height: 34px;
+  margin-bottom: 8px;
   font-family: inherit;
   color: #1a1a18;
   background: #fff;
@@ -1028,6 +1103,16 @@ td.changed {
 
   .lupe-modal {
     max-height: 95vh;
+  }
+
+  .changes-modal {
+    width: min(98vw, 1080px);
+    max-height: 92vh;
+    padding: 20px 14px 14px;
+  }
+
+  .changes-table {
+    font-size: 12px;
   }
 
   .lupe-header-bar {

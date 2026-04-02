@@ -205,6 +205,7 @@ const App = defineComponent({
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const hideNotTaughtInLupe = ref(true)
     const timerModalOpen = ref(false)
+    const changesModalOpen = ref(false)
     const timerTotalSeconds = ref(300)
     const timerRemainingSeconds = ref(300)
     const timerRunning = ref(false)
@@ -475,8 +476,30 @@ const App = defineComponent({
       selectedSchuelerId.value = null
       activeMode.value = 'klasse'
       lupeOpen.value = false
+      changesModalOpen.value = false
       editingCell.value = null
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
+    }
+
+    function printChangeLog(logLines: string[]) {
+      if (typeof window === 'undefined') return
+      const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
+      if (!printWindow) {
+        status.value = 'Popup blockiert. Bitte Popups fuer diese Seite erlauben.'
+        return
+      }
+
+      const content = logLines
+        .map(line => line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;'))
+        .join('\n')
+
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Aenderungslog</title><style>body{font-family:Manrope,Segoe UI,sans-serif;margin:24px;color:#1f2940}h1{margin:0 0 12px}pre{white-space:pre-wrap;line-height:1.45;font-size:13px}</style></head><body><h1>Aenderungslog</h1><pre>${content}</pre></body></html>`)
+      printWindow.document.close()
+      printWindow.focus()
+      printWindow.print()
     }
 
     return () => {
@@ -562,7 +585,7 @@ const App = defineComponent({
                 },
               }, [
                 h('option', { value: '' }, '–'),
-                ...availableNotes.map((n: EnmNote) => h('option', { value: n.kuerzel }, `${n.kuerzel} (${n.text})`)),
+                ...availableNotes.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
               ])
               : h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
             h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
@@ -572,6 +595,64 @@ const App = defineComponent({
 
       const timerLabel = formatTimer(timerRemainingSeconds.value)
       const showTimerChip = timerRunning.value || timerRemainingSeconds.value !== timerTotalSeconds.value || timerFinishedFlash.value
+
+      const schuelerById = new Map((store.enmExport?.schueler ?? []).map(item => [item.id, item]))
+      const lerngruppeById = new Map((store.enmExport?.lerngruppen ?? []).map(item => [item.id, item]))
+      const fachById = new Map((store.enmExport?.faecher ?? []).map(item => [item.id, item]))
+
+      const noteChanges = store.listNoteChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+        const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+        return {
+          typ: 'Note',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`,
+          alt: change.originalNote ?? '–',
+          neu: change.newNote ?? '–',
+        }
+      })
+
+      const bemerkungLabels = {
+        ASV: 'Arbeits- und Sozialverhalten',
+        AUE: 'Ausserunterrichtliches Engagement',
+        ZB: 'Zeugnisbemerkungen',
+      } as const
+
+      const bemerkungChanges = store.listBemerkungChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        return {
+          typ: 'Bemerkung',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: bemerkungLabels[change.field],
+          alt: change.originalValue?.trim() || '–',
+          neu: change.newValue?.trim() || '–',
+        }
+      })
+
+      const fehlstundenLabels = {
+        fehlstundenGesamt: 'Fehlstunden gesamt',
+        fehlstundenGesamtUnentschuldigt: 'Fehlstunden unentschuldigt',
+      } as const
+
+      const fehlstundenChanges = store.listFehlstundenChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        return {
+          typ: 'Fehlstunden',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: fehlstundenLabels[change.field],
+          alt: String(change.originalValue),
+          neu: String(change.newValue),
+        }
+      })
+
+      const allChanges = [...noteChanges, ...fehlstundenChanges, ...bemerkungChanges]
+      const printableLogLines = [
+        `Aenderungslog vom ${new Date().toLocaleString('de-DE')}`,
+        `Gesamt: ${allChanges.length} Aenderungen`,
+        '',
+        ...allChanges.map((item, index) => `${index + 1}. [${item.typ}] ${item.schuelerName} | ${item.feld} | Alt: ${item.alt} | Neu: ${item.neu}`),
+      ]
 
       return h('main', {
         class: inConference
@@ -740,7 +821,7 @@ const App = defineComponent({
                 onClick: () => {
                   lupeOpen.value = !lupeOpen.value
                 },
-              }, 'Schuelerlupe'),
+              }, 'Schülerlupe'),
               h('button', {
                 class: `icon-btn ${timerRunning.value ? 'timer-on' : ''} ${timerFinishedFlash.value ? 'timer-finished' : ''}`.trim(),
                 onClick: () => {
@@ -756,10 +837,9 @@ const App = defineComponent({
               h('button', {
                 class: 'icon-btn',
                 onClick: () => {
-                  store.clearAllChanges()
+                  changesModalOpen.value = true
                 },
-                disabled: !store.hasAnyChanges,
-              }, `Aenderungen verwerfen (${store.totalChangeCount})`),
+              }, `Änderungen (${store.totalChangeCount})`),
               h('button', {
                 class: 'icon-btn icon-btn-logout',
                 onClick: logout,
@@ -986,6 +1066,70 @@ const App = defineComponent({
                       class: `timer-btn primary ${timerRunning.value ? 'stop' : ''}`.trim(),
                       onClick: toggleTimer,
                     }, timerRunning.value ? 'Pause' : (timerRemainingSeconds.value < timerTotalSeconds.value ? 'Weiter' : 'Starten')),
+                  ]),
+                ]),
+              ])
+              : null,
+            changesModalOpen.value
+              ? h('div', {
+                class: 'changes-modal-bg open',
+                onClick: (event: MouseEvent) => {
+                  if (event.target === event.currentTarget) {
+                    changesModalOpen.value = false
+                  }
+                },
+              }, [
+                h('section', { class: 'changes-modal' }, [
+                  h('button', {
+                    class: 'timer-modal-close',
+                    onClick: () => {
+                      changesModalOpen.value = false
+                    },
+                  }, '×'),
+                  h('h3', { class: 'changes-modal-title' }, `Änderungen (${allChanges.length})`),
+                  allChanges.length
+                    ? h('div', { class: 'changes-list-wrap' }, [
+                      h('table', { class: 'changes-table' }, [
+                        h('thead', [
+                          h('tr', [
+                            h('th', 'Typ'),
+                            h('th', 'Schueler'),
+                            h('th', 'Feld'),
+                            h('th', 'Alt'),
+                            h('th', 'Neu'),
+                          ]),
+                        ]),
+                        h('tbody', allChanges.map(item => h('tr', [
+                          h('td', item.typ),
+                          h('td', item.schuelerName),
+                          h('td', item.feld),
+                          h('td', item.alt),
+                          h('td', item.neu),
+                        ]))),
+                      ]),
+                    ])
+                    : h('p', { class: 'changes-empty' }, 'Noch keine Änderungen vorhanden.'),
+                  h('div', { class: 'changes-modal-actions' }, [
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        printChangeLog(printableLogLines)
+                      },
+                      disabled: allChanges.length === 0,
+                    }, 'Log drucken'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        status.value = 'Export folgt in einem naechsten Schritt.'
+                      },
+                    }, 'Export'),
+                    h('button', {
+                      class: 'icon-btn',
+                      onClick: () => {
+                        store.clearAllChanges()
+                      },
+                      disabled: allChanges.length === 0,
+                    }, 'Aenderungen verwerfen'),
                   ]),
                 ]),
               ])

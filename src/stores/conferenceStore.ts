@@ -35,6 +35,20 @@ type NoteChange = {
   newNote: Notenkuerzel | null
 }
 
+type BemerkungChange = {
+  schuelerId: number
+  field: 'ASV' | 'AUE' | 'ZB'
+  originalValue: string | null
+  newValue: string | null
+}
+
+type FehlstundenChange = {
+  schuelerId: number
+  field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'
+  originalValue: number
+  newValue: number
+}
+
 function encodeBasicAuth(username: string, password: string): string {
   const bytes = new TextEncoder().encode(`${username}:${password}`)
   let binary = ''
@@ -382,6 +396,22 @@ export const useConferenceStore = defineStore('conference', () => {
     return bemerkungChanges.value.has(getBemerkungChangeKey(schuelerId, field))
   }
 
+  function listBemerkungChanges(): BemerkungChange[] {
+    const changes: BemerkungChange[] = []
+    for (const [key, newValue] of bemerkungChanges.value) {
+      const [schueler, field] = key.split(':')
+      const schuelerId = Number(schueler)
+      const typedField = field as 'ASV' | 'AUE' | 'ZB'
+      changes.push({
+        schuelerId,
+        field: typedField,
+        originalValue: getOriginalBemerkungenValue(schuelerId, typedField),
+        newValue,
+      })
+    }
+    return changes
+  }
+
   // ---------------------------------------------------------------------------
   // Fehlstunden
   // ---------------------------------------------------------------------------
@@ -418,6 +448,22 @@ export const useConferenceStore = defineStore('conference', () => {
 
   function isFehlstundenChanged(schuelerId: number, field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'): boolean {
     return fehlstundenChanges.value.has(getFehlstundenChangeKey(schuelerId, field))
+  }
+
+  function listFehlstundenChanges(): FehlstundenChange[] {
+    const changes: FehlstundenChange[] = []
+    for (const [key, newValue] of fehlstundenChanges.value) {
+      const [schueler, field] = key.split(':')
+      const schuelerId = Number(schueler)
+      const typedField = field as 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'
+      changes.push({
+        schuelerId,
+        field: typedField,
+        originalValue: getOriginalFehlstundenValue(schuelerId, typedField),
+        newValue,
+      })
+    }
+    return changes
   }
 
   // ---------------------------------------------------------------------------
@@ -589,10 +635,12 @@ export const useConferenceStore = defineStore('conference', () => {
     getBemerkungenValue,
     updateBemerkungenValue,
     isBemerkungChanged,
+    listBemerkungChanges,
     // Fehlstunden
     getFehlstundenValue,
     updateFehlstundenValue,
     isFehlstundenChanged,
+    listFehlstundenChanges,
     // Reset
     reset,
   }
