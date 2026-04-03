@@ -215,6 +215,7 @@ const App = defineComponent({
     const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
     const lupeOpen = ref(false)
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
+    const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const timerModalOpen = ref(false)
@@ -745,6 +746,8 @@ const App = defineComponent({
             lgId,
             note,
             tone,
+            fehlstundenFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenFach'),
+            fehlstundenUnentschuldigtFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenUnentschuldigtFach'),
             fachbezogeneBemerkung: store.getFachbezogeneBemerkungValue(selectedSchueler.schueler.id, lgId),
           }]
         })
@@ -836,7 +839,25 @@ const App = defineComponent({
         }
       })
 
-      const allChanges = [...noteChanges, ...fehlstundenChanges, ...bemerkungChanges, ...fachbezogeneBemerkungChanges]
+      const fachbezogeneFehlstundenLabels = {
+        fehlstundenFach: 'FS',
+        fehlstundenUnentschuldigtFach: 'FSU',
+      } as const
+
+      const fachbezogeneFehlstundenChanges = store.listFachbezogeneFehlstundenChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+        const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+        return {
+          typ: 'Fachfehlstunden',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: `${fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`} ${fachbezogeneFehlstundenLabels[change.field]}`,
+          alt: String(change.originalValue),
+          neu: String(change.newValue),
+        }
+      })
+
+      const allChanges = [...noteChanges, ...fehlstundenChanges, ...fachbezogeneFehlstundenChanges, ...bemerkungChanges, ...fachbezogeneBemerkungChanges]
       const exportTargetLabel = store.dataSource === 'server'
         ? 'SVWS-Server (Import v2)'
         : store.dataSource === 'file'
@@ -1129,19 +1150,35 @@ const App = defineComponent({
                       h('div', { class: 'lupe-name' }, selectedSchueler ? `${selectedSchueler.schueler.nachname}, ${selectedSchueler.schueler.vorname}` : 'Kein Schueler gewaehlt'),
                       h('div', { class: 'lupe-meta' }, klasse && selectedSchuelerIndex >= 0 ? `${selectedKlasse?.kuerzelAnzeige ?? selectedKlasse?.kuerzel ?? '–'} · Schueler ${selectedSchuelerIndex + 1} von ${klasse.schueler.length}` : ''),
                     ]),
-                    h('div', { class: 'lupe-view-toggle' }, [
-                      h('button', {
-                        class: lupeViewMode.value === 'kachel' ? 'lupe-view-btn active' : 'lupe-view-btn',
-                        onClick: () => {
-                          lupeViewMode.value = 'kachel'
-                        },
-                      }, 'Kacheln'),
-                      h('button', {
-                        class: lupeViewMode.value === 'tabelle' ? 'lupe-view-btn active' : 'lupe-view-btn',
-                        onClick: () => {
-                          lupeViewMode.value = 'tabelle'
-                        },
-                      }, 'Tabelle'),
+                    h('div', { class: 'lupe-controls' }, [
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: lupeViewMode.value === 'kachel' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeViewMode.value = 'kachel'
+                          },
+                        }, 'Kacheln'),
+                        h('button', {
+                          class: lupeViewMode.value === 'tabelle' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeViewMode.value = 'tabelle'
+                          },
+                        }, 'Tabelle'),
+                      ]),
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: lupeFehlstundenMode.value === 'gesamt' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeFehlstundenMode.value = 'gesamt'
+                          },
+                        }, 'FSG'),
+                        h('button', {
+                          class: lupeFehlstundenMode.value === 'fach' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeFehlstundenMode.value = 'fach'
+                          },
+                        }, 'FSF'),
+                      ]),
                     ]),
                     h('div', { class: 'lupe-nav' }, [
                       h('button', {
@@ -1221,18 +1258,59 @@ const App = defineComponent({
                           h('table', { class: 'lupe-table' }, [
                             h('thead', [
                               h('tr', [
-                                h('th', 'Fachkürzel'),
-                                h('th', 'Kursart'),
-                                h('th', 'Lehrerkürzel'),
-                                h('th', 'Notenkürzel'),
-                                h('th', 'Fachbezogene Bemerkungen'),
+                                h('th', { class: 'lupe-col-fach' }, 'Fachkürzel'),
+                                h('th', { class: 'lupe-col-kursart' }, 'Kursart'),
+                                h('th', { class: 'lupe-col-lehrer' }, 'Lehrerkürzel'),
+                                ...(lupeFehlstundenMode.value === 'fach'
+                                  ? [
+                                    h('th', { class: 'lupe-col-fs' }, 'FS'),
+                                    h('th', { class: 'lupe-col-fsu' }, 'FSU'),
+                                  ]
+                                  : []),
+                                h('th', { class: 'lupe-col-note' }, 'Notenkürzel'),
+                                h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen'),
                               ]),
                             ]),
                             h('tbody', lupeSubjects.map(subject => h('tr', [
-                              h('td', { class: 'lupe-table-fach' }, subject.fachKuerzel),
-                              h('td', { class: subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart' }, subject.kursart),
-                              h('td', subject.lehrerText),
-                              h('td', { class: `lupe-table-note-cell ${subject.tone.label}`.trim() }, [
+                              h('td', { class: 'lupe-table-fach lupe-col-fach' }, subject.fachKuerzel),
+                              h('td', { class: `${subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart'} lupe-col-kursart`.trim() }, subject.kursart),
+                              h('td', { class: 'lupe-col-lehrer' }, subject.lehrerText),
+                              ...(lupeFehlstundenMode.value === 'fach'
+                                ? [
+                                  h('td', { class: `lupe-col-fs lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach') ? 'changed' : ''}`.trim() }, [
+                                    h('input', {
+                                      type: 'number',
+                                      min: '0',
+                                      step: '1',
+                                      inputmode: 'numeric',
+                                      class: 'lupe-table-number-input',
+                                      value: subject.fehlstundenFach,
+                                      onInput: (event: Event) => {
+                                        if (!selectedSchueler) return
+                                        const value = Number((event.target as HTMLInputElement).value)
+                                        store.updateFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach', value)
+                                      },
+                                    }),
+                                  ]),
+                                  h('td', { class: `lupe-col-fsu lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach') ? 'changed' : ''}`.trim() }, [
+                                    h('input', {
+                                      type: 'number',
+                                      min: '0',
+                                      max: String(subject.fehlstundenFach),
+                                      step: '1',
+                                      inputmode: 'numeric',
+                                      class: 'lupe-table-number-input',
+                                      value: subject.fehlstundenUnentschuldigtFach,
+                                      onInput: (event: Event) => {
+                                        if (!selectedSchueler) return
+                                        const value = Number((event.target as HTMLInputElement).value)
+                                        store.updateFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach', value)
+                                      },
+                                    }),
+                                  ]),
+                                ]
+                                : []),
+                              h('td', { class: `lupe-table-note-cell ${subject.tone.label} lupe-col-note`.trim() }, [
                                 h('select', {
                                   class: `lupe-table-note-select ${subject.tone.note}`,
                                   value: subject.note ?? '',
@@ -1246,7 +1324,7 @@ const App = defineComponent({
                                   ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
                                 ]),
                               ]),
-                              h('td', [
+                              h('td', { class: 'lupe-col-remark' }, [
                                 h('input', {
                                   type: 'text',
                                   class: `lupe-table-remark-input ${selectedSchueler && store.isFachbezogeneBemerkungChanged(selectedSchueler.schueler.id, subject.lgId) ? 'changed' : ''}`.trim(),

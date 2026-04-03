@@ -59,6 +59,14 @@ type FehlstundenChange = {
   newValue: number
 }
 
+type FachbezogeneFehlstundenChange = {
+  schuelerId: number
+  lerngruppeId: number
+  field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'
+  originalValue: number
+  newValue: number
+}
+
 function encodeBasicAuth(username: string, password: string): string {
   const bytes = new TextEncoder().encode(`${username}:${password}`)
   let binary = ''
@@ -198,6 +206,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const bemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fachbezogeneBemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fehlstundenChanges = ref<Map<string, number>>(new Map())
+  const fachbezogeneFehlstundenChanges = ref<Map<string, number>>(new Map())
   const dataSource = ref<DataSource>(null)
   const lastServerConnection = ref<ServerConnectionParams | null>(null)
 
@@ -361,8 +370,10 @@ export const useConferenceStore = defineStore('conference', () => {
   const fachbezogeneBemerkungChangeCount = computed(() => fachbezogeneBemerkungChanges.value.size)
   const hasFehlstundenChanges = computed(() => fehlstundenChanges.value.size > 0)
   const fehlstundenChangeCount = computed(() => fehlstundenChanges.value.size)
-  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0)
-  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size)
+  const hasFachbezogeneFehlstundenChanges = computed(() => fachbezogeneFehlstundenChanges.value.size > 0)
+  const fachbezogeneFehlstundenChangeCount = computed(() => fachbezogeneFehlstundenChanges.value.size)
+  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0 || fachbezogeneFehlstundenChanges.value.size > 0)
+  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size + fachbezogeneFehlstundenChanges.value.size)
 
   function getChangeKey(schuelerId: number, lerngruppeId: number): string {
     return `${schuelerId}:${lerngruppeId}`
@@ -407,6 +418,7 @@ export const useConferenceStore = defineStore('conference', () => {
     bemerkungChanges.value.clear()
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
+    fachbezogeneFehlstundenChanges.value.clear()
   }
 
   function buildPatchedExport(): EnmExport | null {
@@ -461,6 +473,19 @@ export const useConferenceStore = defineStore('conference', () => {
         schueler.lernabschnitt.tsFehlstundenGesamt = tsNow
       } else {
         schueler.lernabschnitt.tsFehlstundenGesamtUnentschuldigt = tsNow
+      }
+    }
+
+    for (const change of listFachbezogeneFehlstundenChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === change.lerngruppeId)
+      if (!leistung) continue
+      leistung[change.field] = change.newValue
+      if (change.field === 'fehlstundenFach') {
+        leistung.tsFehlstundenFach = tsNow
+      } else {
+        leistung.tsFehlstundenUnentschuldigtFach = tsNow
       }
     }
 
@@ -742,6 +767,82 @@ export const useConferenceStore = defineStore('conference', () => {
     return changes
   }
 
+  function getFachbezogeneFehlstundenChangeKey(schuelerId: number, lerngruppeId: number, field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'): string {
+    return `${schuelerId}:${lerngruppeId}:${field}`
+  }
+
+  function getOriginalFachbezogeneFehlstundenValue(schuelerId: number, lerngruppeId: number, field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'): number {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return 0
+    return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.[field] ?? 0
+  }
+
+  function getFachbezogeneFehlstundenValue(schuelerId: number, lerngruppeId: number, field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'): number {
+    const key = getFachbezogeneFehlstundenChangeKey(schuelerId, lerngruppeId, field)
+    if (fachbezogeneFehlstundenChanges.value.has(key)) {
+      return fachbezogeneFehlstundenChanges.value.get(key) ?? 0
+    }
+    return getOriginalFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, field)
+  }
+
+  function updateFachbezogeneFehlstundenValue(schuelerId: number, lerngruppeId: number, field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach', value: number): void {
+    const normalized = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0
+    const key = getFachbezogeneFehlstundenChangeKey(schuelerId, lerngruppeId, field)
+    const original = getOriginalFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, field)
+
+    if (field === 'fehlstundenUnentschuldigtFach') {
+      const maxAllowed = getFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, 'fehlstundenFach')
+      const bounded = Math.min(normalized, maxAllowed)
+
+      if (original === bounded) {
+        fachbezogeneFehlstundenChanges.value.delete(key)
+        return
+      }
+
+      fachbezogeneFehlstundenChanges.value.set(key, bounded)
+      return
+    }
+
+    if (original === normalized) {
+      fachbezogeneFehlstundenChanges.value.delete(key)
+    } else {
+      fachbezogeneFehlstundenChanges.value.set(key, normalized)
+    }
+
+    const currentFsu = getFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, 'fehlstundenUnentschuldigtFach')
+    if (currentFsu > normalized) {
+      const fsuKey = getFachbezogeneFehlstundenChangeKey(schuelerId, lerngruppeId, 'fehlstundenUnentschuldigtFach')
+      const originalFsu = getOriginalFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, 'fehlstundenUnentschuldigtFach')
+      if (originalFsu === normalized) {
+        fachbezogeneFehlstundenChanges.value.delete(fsuKey)
+      } else {
+        fachbezogeneFehlstundenChanges.value.set(fsuKey, normalized)
+      }
+    }
+  }
+
+  function isFachbezogeneFehlstundenChanged(schuelerId: number, lerngruppeId: number, field: 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'): boolean {
+    return fachbezogeneFehlstundenChanges.value.has(getFachbezogeneFehlstundenChangeKey(schuelerId, lerngruppeId, field))
+  }
+
+  function listFachbezogeneFehlstundenChanges(): FachbezogeneFehlstundenChange[] {
+    const changes: FachbezogeneFehlstundenChange[] = []
+    for (const [key, newValue] of fachbezogeneFehlstundenChanges.value) {
+      const [schueler, lerngruppe, field] = key.split(':')
+      const schuelerId = Number(schueler)
+      const lerngruppeId = Number(lerngruppe)
+      const typedField = field as 'fehlstundenFach' | 'fehlstundenUnentschuldigtFach'
+      changes.push({
+        schuelerId,
+        lerngruppeId,
+        field: typedField,
+        originalValue: getOriginalFachbezogeneFehlstundenValue(schuelerId, lerngruppeId, typedField),
+        newValue,
+      })
+    }
+    return changes
+  }
+
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
@@ -755,6 +856,7 @@ export const useConferenceStore = defineStore('conference', () => {
       bemerkungChanges.value.clear()
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
+      fachbezogeneFehlstundenChanges.value.clear()
       dataSource.value = 'file'
       lastServerConnection.value = null
       // Erste Klasse vorauswählen
@@ -842,6 +944,7 @@ export const useConferenceStore = defineStore('conference', () => {
       bemerkungChanges.value.clear()
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
+      fachbezogeneFehlstundenChanges.value.clear()
       dataSource.value = 'server'
       lastServerConnection.value = {
         baseUrl: params.baseUrl,
@@ -884,6 +987,7 @@ export const useConferenceStore = defineStore('conference', () => {
     bemerkungChanges.value.clear()
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
+    fachbezogeneFehlstundenChanges.value.clear()
     dataSource.value = null
     lastServerConnection.value = null
     error.value = null
@@ -916,6 +1020,8 @@ export const useConferenceStore = defineStore('conference', () => {
     fachbezogeneBemerkungChangeCount,
     hasFehlstundenChanges,
     fehlstundenChangeCount,
+    hasFachbezogeneFehlstundenChanges,
+    fachbezogeneFehlstundenChangeCount,
     hasAnyChanges,
     totalChangeCount,
     // Actions
@@ -945,6 +1051,10 @@ export const useConferenceStore = defineStore('conference', () => {
     updateFehlstundenValue,
     isFehlstundenChanged,
     listFehlstundenChanges,
+    getFachbezogeneFehlstundenValue,
+    updateFachbezogeneFehlstundenValue,
+    isFachbezogeneFehlstundenChanged,
+    listFachbezogeneFehlstundenChanges,
     // Reset
     reset,
   }
