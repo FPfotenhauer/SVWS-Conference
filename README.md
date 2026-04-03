@@ -3,6 +3,9 @@
 Digitale Notenkonferenz-Übersicht für Klassen und Lerngruppen.  
 Liest den ENM-Export des SVWS-Servers (`.gz`-Datei) und stellt alle Noten übersichtlich dar.
 
+Zum Benutzerhandbuch geht es hier:
+https://fpfotenhauer.github.io/SVWS-Conference/
+
 ## Voraussetzungen
 
 - Node.js 20 oder neuer
