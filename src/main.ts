@@ -218,6 +218,7 @@ const App = defineComponent({
     const lupeOpen = ref(false)
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
     const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
+    const notenAnzeigeMode = ref<'noten' | 'punkte'>('noten')
     const lupeColumnWidths = ref<Record<LupeColumnKey, number>>({
       fach: 96,
       kursart: 78,
@@ -676,6 +677,16 @@ const App = defineComponent({
       const notenOptions = (store.enmExport?.noten ?? [])
         .slice()
         .sort((a, b) => b.notenpunkte - a.notenpunkte)
+      const notenpunkteByKuerzel = new Map<Notenkuerzel, number>(notenOptions.map(item => [item.kuerzel, item.notenpunkte]))
+
+      function getNoteDisplay(note: Notenkuerzel | null): string {
+        if (!note) return '–'
+        if (notenAnzeigeMode.value === 'punkte') {
+          const points = notenpunkteByKuerzel.get(note)
+          return typeof points === 'number' && Number.isFinite(points) ? String(points) : note
+        }
+        return note
+      }
 
       if (klasse?.schueler.length && !klasse.schueler.some(entry => entry.schueler.id === selectedSchuelerId.value)) {
         selectedSchuelerId.value = klasse.schueler[0].schueler.id
@@ -818,7 +829,7 @@ const App = defineComponent({
             },
           }, [
             h('option', { value: '' }, '–'),
-            ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
+            ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, getNoteDisplay(n.kuerzel))),
           ]),
           h('div', { class: `lupe-fach-label ${subject.tone.label}` }, subject.tone.text),
           h('div', { class: 'lupe-fach-lehrer' }, subject.lehrerText),
@@ -1090,6 +1101,20 @@ const App = defineComponent({
                 }, 'Lerngruppe'),
               ]),
               h('div', { class: 'spacer' }),
+              h('div', { class: 'mode-tabs' }, [
+                h('button', {
+                  class: notenAnzeigeMode.value === 'noten' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    notenAnzeigeMode.value = 'noten'
+                  },
+                }, 'Noten'),
+                h('button', {
+                  class: notenAnzeigeMode.value === 'punkte' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    notenAnzeigeMode.value = 'punkte'
+                  },
+                }, 'Punkte'),
+              ]),
               h('button', {
                 class: lupeOpen.value ? 'icon-btn active' : 'icon-btn',
                 onClick: () => {
@@ -1172,7 +1197,7 @@ const App = defineComponent({
                               },
                             }, [
                               h('option', { value: '' }, '–'),
-                              ...notenOptions.map(item => h('option', { value: item.kuerzel }, item.kuerzel)),
+                              ...notenOptions.map(item => h('option', { value: item.kuerzel }, getNoteDisplay(item.kuerzel))),
                             ]),
                           ])
                         }
@@ -1184,7 +1209,7 @@ const App = defineComponent({
                             startEditingCell(entry.schueler.id, lgId)
                           },
                         }, [
-                          h('span', { class: gradeClass(note) }, note ?? '–'),
+                          h('span', { class: gradeClass(note) }, getNoteDisplay(note)),
                         ])
                       }),
                     ])
@@ -1236,6 +1261,20 @@ const App = defineComponent({
                             lupeFehlstundenMode.value = 'fach'
                           },
                         }, 'FSF'),
+                      ]),
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: notenAnzeigeMode.value === 'noten' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            notenAnzeigeMode.value = 'noten'
+                          },
+                        }, 'Noten'),
+                        h('button', {
+                          class: notenAnzeigeMode.value === 'punkte' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            notenAnzeigeMode.value = 'punkte'
+                          },
+                        }, 'Punkte'),
                       ]),
                     ]),
                     h('div', { class: 'lupe-nav' }, [
@@ -1341,7 +1380,7 @@ const App = defineComponent({
                                   ]
                                   : []),
                                 h('th', { class: 'lupe-col-note lupe-resizable-col', style: { width: `${lupeColumnWidths.value.note}px` } }, [
-                                  h('span', { class: 'lupe-th-label' }, 'Notenkürzel'),
+                                  h('span', { class: 'lupe-th-label' }, notenAnzeigeMode.value === 'punkte' ? 'Punkte' : 'Notenkürzel'),
                                   h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('note', event) }),
                                 ]),
                                 h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen'),
@@ -1397,7 +1436,7 @@ const App = defineComponent({
                                   },
                                 }, [
                                   h('option', { value: '' }, '–'),
-                                  ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
+                                  ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, getNoteDisplay(n.kuerzel))),
                                 ]),
                               ]),
                               h('td', { class: 'lupe-col-remark' }, [
