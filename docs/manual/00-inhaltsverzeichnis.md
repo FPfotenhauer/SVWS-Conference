@@ -11,18 +11,13 @@
 3. [Voraussetzungen](03-voraussetzungen.md)
 4. [Oberfläche im Überblick](04-oberflaeche.md)
 5. [Daten laden](05-daten-laden.md)
-6. Konferenzübersicht nutzen
+6. [Konferenzübersicht nutzen](06-konferenzuebersicht.md)
 7. Datenschutz und Datensicherheit
 8. Fehlerbehebung
 9. FAQ
 10. Anhang
 
 ## Kapitelübersicht (noch in Planung)
-
-
-### 6. Konferenzübersicht nutzen
-
-Navigation in Klassen/Lerngruppen, Anzeige und Interpretation der Notendaten.
 
 ### 7. Datenschutz und Datensicherheit
 
