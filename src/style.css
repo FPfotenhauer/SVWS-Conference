@@ -1046,8 +1046,14 @@ td.changed {
   background: #fafaf8;
 }
 
+.lupe-grid-wrap-table {
+  overflow: hidden;
+}
+
 .lupe-table-wrap {
-  overflow-x: auto;
+  flex: 1;
+  height: 100%;
+  overflow: auto;
   position: relative;
 }
 

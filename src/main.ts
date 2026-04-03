@@ -1213,7 +1213,7 @@ const App = defineComponent({
                         : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
                     ])),
                   ]),
-                  h('div', { class: 'lupe-grid-wrap' }, [
+                  h('div', { class: lupeViewMode.value === 'tabelle' ? 'lupe-grid-wrap lupe-grid-wrap-table' : 'lupe-grid-wrap' }, [
                     lupeSubjects.length
                       ? lupeViewMode.value === 'kachel'
                         ? h('div', { class: 'lupe-grid' }, lupeCards)
