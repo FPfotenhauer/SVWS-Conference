@@ -10,18 +10,15 @@
 2. [Schnellstart](02-schnellstart.md)
 3. [Voraussetzungen](03-voraussetzungen.md)
 4. [Oberfläche im Überblick](04-oberflaeche.md)
-5. Daten laden
+5. [Daten laden](05-daten-laden.md)
 6. Konferenzübersicht nutzen
 7. Datenschutz und Datensicherheit
 8. Fehlerbehebung
 9. FAQ
 10. Anhang
 
-## Kapitelübersicht (geplant)
+## Kapitelübersicht (noch in Planung)
 
-### 5. Daten laden
-
-Online-Abruf vom SVWS-Server und Offline-Upload von `enm.json.gz`.
 
 ### 6. Konferenzübersicht nutzen
 
