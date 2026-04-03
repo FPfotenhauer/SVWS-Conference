@@ -21,6 +21,8 @@ type RuntimeSvwsConfig = {
   trustSelfSigned: boolean
 }
 
+type LupeColumnKey = 'fach' | 'kursart' | 'lehrer' | 'fs' | 'fsu' | 'note'
+
 const RUNTIME_CONFIG_STORAGE_KEY = 'svws-conference.runtime-config'
 
 declare const __SVWS_DEFAULTS__: Partial<SvwsDefaults> | undefined
@@ -216,6 +218,22 @@ const App = defineComponent({
     const lupeOpen = ref(false)
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
     const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
+    const lupeColumnWidths = ref<Record<LupeColumnKey, number>>({
+      fach: 96,
+      kursart: 78,
+      lehrer: 128,
+      fs: 66,
+      fsu: 66,
+      note: 108,
+    })
+    const lupeMinColumnWidths: Record<LupeColumnKey, number> = {
+      fach: 56,
+      kursart: 52,
+      lehrer: 84,
+      fs: 48,
+      fsu: 48,
+      note: 78,
+    }
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const timerModalOpen = ref(false)
@@ -232,6 +250,7 @@ const App = defineComponent({
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
+    let lupeResizeCleanup: (() => void) | null = null
 
     function persistRuntimeConfig() {
       if (typeof window === 'undefined') return
@@ -369,9 +388,42 @@ const App = defineComponent({
       startTimerFromCurrentPreset()
     }
 
+    function startLupeColumnResize(column: LupeColumnKey, event: MouseEvent) {
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.button !== 0) return
+
+      if (lupeResizeCleanup) {
+        lupeResizeCleanup()
+        lupeResizeCleanup = null
+      }
+
+      const startX = event.clientX
+      const startWidth = lupeColumnWidths.value[column]
+      const minWidth = lupeMinColumnWidths[column]
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX
+        lupeColumnWidths.value[column] = Math.max(minWidth, Math.round(startWidth + delta))
+      }
+
+      const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+        lupeResizeCleanup = null
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+      lupeResizeCleanup = onMouseUp
+    }
+
     onUnmounted(() => {
       clearTimerInterval()
       clearTimerFeedbackTimeout()
+      if (lupeResizeCleanup) {
+        lupeResizeCleanup()
+      }
     })
 
     async function connectToServer() {
@@ -775,6 +827,12 @@ const App = defineComponent({
 
       const timerLabel = formatTimer(timerRemainingSeconds.value)
       const showTimerChip = timerRunning.value || timerRemainingSeconds.value !== timerTotalSeconds.value || timerFinishedFlash.value
+      const lupeTableMinWidth = lupeColumnWidths.value.fach
+        + lupeColumnWidths.value.kursart
+        + lupeColumnWidths.value.lehrer
+        + (lupeFehlstundenMode.value === 'fach' ? lupeColumnWidths.value.fs + lupeColumnWidths.value.fsu : 0)
+        + lupeColumnWidths.value.note
+        + 260
 
       const schuelerById = new Map((store.enmExport?.schueler ?? []).map(item => [item.id, item]))
       const lerngruppeById = new Map((store.enmExport?.lerngruppen ?? []).map(item => [item.id, item]))
@@ -1255,29 +1313,47 @@ const App = defineComponent({
                       ? lupeViewMode.value === 'kachel'
                         ? h('div', { class: 'lupe-grid' }, lupeCards)
                         : h('div', { class: 'lupe-table-wrap' }, [
-                          h('table', { class: 'lupe-table' }, [
+                          h('table', { class: 'lupe-table', style: { minWidth: `${lupeTableMinWidth}px` } }, [
                             h('thead', [
                               h('tr', [
-                                h('th', { class: 'lupe-col-fach' }, 'Fachkürzel'),
-                                h('th', { class: 'lupe-col-kursart' }, 'Kursart'),
-                                h('th', { class: 'lupe-col-lehrer' }, 'Lehrerkürzel'),
+                                h('th', { class: 'lupe-col-fach lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fach}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Fachkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fach', event) }),
+                                ]),
+                                h('th', { class: 'lupe-col-kursart lupe-resizable-col', style: { width: `${lupeColumnWidths.value.kursart}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Kursart'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('kursart', event) }),
+                                ]),
+                                h('th', { class: 'lupe-col-lehrer lupe-resizable-col', style: { width: `${lupeColumnWidths.value.lehrer}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Lehrerkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('lehrer', event) }),
+                                ]),
                                 ...(lupeFehlstundenMode.value === 'fach'
                                   ? [
-                                    h('th', { class: 'lupe-col-fs' }, 'FS'),
-                                    h('th', { class: 'lupe-col-fsu' }, 'FSU'),
+                                    h('th', { class: 'lupe-col-fs lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fs}px` } }, [
+                                      h('span', { class: 'lupe-th-label' }, 'FS'),
+                                      h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fs', event) }),
+                                    ]),
+                                    h('th', { class: 'lupe-col-fsu lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fsu}px` } }, [
+                                      h('span', { class: 'lupe-th-label' }, 'FSU'),
+                                      h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fsu', event) }),
+                                    ]),
                                   ]
                                   : []),
-                                h('th', { class: 'lupe-col-note' }, 'Notenkürzel'),
+                                h('th', { class: 'lupe-col-note lupe-resizable-col', style: { width: `${lupeColumnWidths.value.note}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Notenkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('note', event) }),
+                                ]),
                                 h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen'),
                               ]),
                             ]),
                             h('tbody', lupeSubjects.map(subject => h('tr', [
-                              h('td', { class: 'lupe-table-fach lupe-col-fach' }, subject.fachKuerzel),
-                              h('td', { class: `${subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart'} lupe-col-kursart`.trim() }, subject.kursart),
-                              h('td', { class: 'lupe-col-lehrer' }, subject.lehrerText),
+                              h('td', { class: 'lupe-table-fach lupe-col-fach', style: { width: `${lupeColumnWidths.value.fach}px` } }, subject.fachKuerzel),
+                              h('td', { class: `${subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart'} lupe-col-kursart`.trim(), style: { width: `${lupeColumnWidths.value.kursart}px` } }, subject.kursart),
+                              h('td', { class: 'lupe-col-lehrer', style: { width: `${lupeColumnWidths.value.lehrer}px` } }, subject.lehrerText),
                               ...(lupeFehlstundenMode.value === 'fach'
                                 ? [
-                                  h('td', { class: `lupe-col-fs lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach') ? 'changed' : ''}`.trim() }, [
+                                  h('td', { class: `lupe-col-fs lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach') ? 'changed' : ''}`.trim(), style: { width: `${lupeColumnWidths.value.fs}px` } }, [
                                     h('input', {
                                       type: 'number',
                                       min: '0',
@@ -1292,7 +1368,7 @@ const App = defineComponent({
                                       },
                                     }),
                                   ]),
-                                  h('td', { class: `lupe-col-fsu lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach') ? 'changed' : ''}`.trim() }, [
+                                  h('td', { class: `lupe-col-fsu lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach') ? 'changed' : ''}`.trim(), style: { width: `${lupeColumnWidths.value.fsu}px` } }, [
                                     h('input', {
                                       type: 'number',
                                       min: '0',
@@ -1310,7 +1386,7 @@ const App = defineComponent({
                                   ]),
                                 ]
                                 : []),
-                              h('td', { class: `lupe-table-note-cell ${subject.tone.label} lupe-col-note`.trim() }, [
+                              h('td', { class: `lupe-table-note-cell ${subject.tone.label} lupe-col-note`.trim(), style: { width: `${lupeColumnWidths.value.note}px` } }, [
                                 h('select', {
                                   class: `lupe-table-note-select ${subject.tone.note}`,
                                   value: subject.note ?? '',

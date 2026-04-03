@@ -907,6 +907,10 @@ td.changed {
   border-radius: 6px 0 0 6px;
 }
 
+.lupe-view-btn:not(:first-child):not(:last-child) {
+  border-left: none;
+}
+
 .lupe-view-btn:last-child {
   border-radius: 0 6px 6px 0;
   border-left: none;
@@ -1064,14 +1068,51 @@ td.changed {
 }
 
 .lupe-table {
+  --lupe-col-fach-width: 110px;
+  --lupe-col-kursart-width: 90px;
+  --lupe-col-lehrer-width: 150px;
+  --lupe-col-fs-width: 72px;
+  --lupe-col-fsu-width: 72px;
+  --lupe-col-note-width: 130px;
+  --lupe-table-min-width: 920px;
   width: 100%;
-  min-width: 920px;
+  min-width: var(--lupe-table-min-width);
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   background: #fff;
   border: 1px solid #e2ded4;
   border-radius: 12px;
+}
+
+.lupe-table-schmal {
+  --lupe-col-fach-width: 92px;
+  --lupe-col-kursart-width: 76px;
+  --lupe-col-lehrer-width: 124px;
+  --lupe-col-fs-width: 62px;
+  --lupe-col-fsu-width: 62px;
+  --lupe-col-note-width: 112px;
+  --lupe-table-min-width: 820px;
+}
+
+.lupe-table-normal {
+  --lupe-col-fach-width: 110px;
+  --lupe-col-kursart-width: 90px;
+  --lupe-col-lehrer-width: 150px;
+  --lupe-col-fs-width: 72px;
+  --lupe-col-fsu-width: 72px;
+  --lupe-col-note-width: 130px;
+  --lupe-table-min-width: 920px;
+}
+
+.lupe-table-breit {
+  --lupe-col-fach-width: 138px;
+  --lupe-col-kursart-width: 108px;
+  --lupe-col-lehrer-width: 190px;
+  --lupe-col-fs-width: 82px;
+  --lupe-col-fsu-width: 82px;
+  --lupe-col-note-width: 148px;
+  --lupe-table-min-width: 1080px;
 }
 
 .lupe-table thead th {
@@ -1088,6 +1129,41 @@ td.changed {
   box-shadow: inset 0 -1px 0 #cfc9bc;
 }
 
+.lupe-resizable-col {
+  position: sticky;
+}
+
+.lupe-th-label {
+  display: block;
+  padding-right: 10px;
+  white-space: nowrap;
+}
+
+.lupe-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.lupe-col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(61, 61, 58, 0.2);
+}
+
+.lupe-col-resizer:hover::after {
+  background: rgba(83, 74, 183, 0.55);
+}
+
 .lupe-table tbody td {
   padding: 6px 12px;
   border-bottom: 1px solid #eeeae2;
@@ -1102,27 +1178,31 @@ td.changed {
 }
 
 .lupe-table .lupe-col-fach {
-  width: 110px;
+  width: var(--lupe-col-fach-width);
   white-space: nowrap;
 }
 
 .lupe-table .lupe-col-kursart {
-  width: 90px;
+  width: var(--lupe-col-kursart-width);
   white-space: nowrap;
 }
 
 .lupe-table .lupe-col-lehrer {
-  width: 150px;
+  width: var(--lupe-col-lehrer-width);
 }
 
 .lupe-table .lupe-col-fs,
 .lupe-table .lupe-col-fsu {
-  width: 72px;
+  width: var(--lupe-col-fs-width);
   white-space: nowrap;
 }
 
+.lupe-table .lupe-col-fsu {
+  width: var(--lupe-col-fsu-width);
+}
+
 .lupe-table .lupe-col-note {
-  width: 130px;
+  width: var(--lupe-col-note-width);
 }
 
 .lupe-table .lupe-col-remark {
