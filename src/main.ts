@@ -1100,7 +1100,6 @@ const App = defineComponent({
                   },
                 }, 'Lerngruppe'),
               ]),
-              h('div', { class: 'spacer' }),
               h('div', { class: 'mode-tabs' }, [
                 h('button', {
                   class: notenAnzeigeMode.value === 'noten' ? 'mode-tab active' : 'mode-tab',
@@ -1115,6 +1114,7 @@ const App = defineComponent({
                   },
                 }, 'Punkte'),
               ]),
+              h('div', { class: 'spacer' }),
               h('button', {
                 class: lupeOpen.value ? 'icon-btn active' : 'icon-btn',
                 onClick: () => {
