@@ -45,6 +45,13 @@ type BemerkungChange = {
   newValue: string | null
 }
 
+type FachbezogeneBemerkungChange = {
+  schuelerId: number
+  lerngruppeId: number
+  originalValue: string | null
+  newValue: string | null
+}
+
 type FehlstundenChange = {
   schuelerId: number
   field: 'fehlstundenGesamt' | 'fehlstundenGesamtUnentschuldigt'
@@ -189,6 +196,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const error = ref<string | null>(null)
   const noteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const bemerkungChanges = ref<Map<string, string | null>>(new Map())
+  const fachbezogeneBemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fehlstundenChanges = ref<Map<string, number>>(new Map())
   const dataSource = ref<DataSource>(null)
   const lastServerConnection = ref<ServerConnectionParams | null>(null)
@@ -349,10 +357,12 @@ export const useConferenceStore = defineStore('conference', () => {
   const noteChangeCount = computed(() => noteChanges.value.size)
   const hasBemerkungChanges = computed(() => bemerkungChanges.value.size > 0)
   const bemerkungChangeCount = computed(() => bemerkungChanges.value.size)
+  const hasFachbezogeneBemerkungChanges = computed(() => fachbezogeneBemerkungChanges.value.size > 0)
+  const fachbezogeneBemerkungChangeCount = computed(() => fachbezogeneBemerkungChanges.value.size)
   const hasFehlstundenChanges = computed(() => fehlstundenChanges.value.size > 0)
   const fehlstundenChangeCount = computed(() => fehlstundenChanges.value.size)
-  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0)
-  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fehlstundenChanges.value.size)
+  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0)
+  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size)
 
   function getChangeKey(schuelerId: number, lerngruppeId: number): string {
     return `${schuelerId}:${lerngruppeId}`
@@ -395,6 +405,7 @@ export const useConferenceStore = defineStore('conference', () => {
   function clearAllChanges(): void {
     noteChanges.value.clear()
     bemerkungChanges.value.clear()
+    fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
   }
 
@@ -431,6 +442,15 @@ export const useConferenceStore = defineStore('conference', () => {
       schueler.bemerkungen[change.field] = change.newValue
       const tsField = `ts${change.field}` as 'tsASV' | 'tsAUE' | 'tsZB'
       schueler.bemerkungen[tsField] = tsNow
+    }
+
+    for (const change of listFachbezogeneBemerkungChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === change.lerngruppeId)
+      if (!leistung) continue
+      leistung.fachbezogeneBemerkungen = change.newValue
+      leistung.tsFachbezogeneBemerkungen = tsNow
     }
 
     for (const change of listFehlstundenChanges()) {
@@ -615,6 +635,60 @@ export const useConferenceStore = defineStore('conference', () => {
   }
 
   // ---------------------------------------------------------------------------
+  // Fachbezogene Bemerkungen je Leistungsdatensatz
+  // ---------------------------------------------------------------------------
+
+  function getFachbezogeneBemerkungChangeKey(schuelerId: number, lerngruppeId: number): string {
+    return `${schuelerId}:${lerngruppeId}`
+  }
+
+  function getOriginalFachbezogeneBemerkungValue(schuelerId: number, lerngruppeId: number): string | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.fachbezogeneBemerkungen ?? null
+  }
+
+  function getFachbezogeneBemerkungValue(schuelerId: number, lerngruppeId: number): string | null {
+    const key = getFachbezogeneBemerkungChangeKey(schuelerId, lerngruppeId)
+    if (fachbezogeneBemerkungChanges.value.has(key)) {
+      return fachbezogeneBemerkungChanges.value.get(key) ?? null
+    }
+    return getOriginalFachbezogeneBemerkungValue(schuelerId, lerngruppeId)
+  }
+
+  function updateFachbezogeneBemerkungValue(schuelerId: number, lerngruppeId: number, value: string | null): void {
+    const key = getFachbezogeneBemerkungChangeKey(schuelerId, lerngruppeId)
+    const original = getOriginalFachbezogeneBemerkungValue(schuelerId, lerngruppeId)
+
+    if (original === value) {
+      fachbezogeneBemerkungChanges.value.delete(key)
+      return
+    }
+
+    fachbezogeneBemerkungChanges.value.set(key, value)
+  }
+
+  function isFachbezogeneBemerkungChanged(schuelerId: number, lerngruppeId: number): boolean {
+    return fachbezogeneBemerkungChanges.value.has(getFachbezogeneBemerkungChangeKey(schuelerId, lerngruppeId))
+  }
+
+  function listFachbezogeneBemerkungChanges(): FachbezogeneBemerkungChange[] {
+    const changes: FachbezogeneBemerkungChange[] = []
+    for (const [key, newValue] of fachbezogeneBemerkungChanges.value) {
+      const [schueler, lerngruppe] = key.split(':')
+      const schuelerId = Number(schueler)
+      const lerngruppeId = Number(lerngruppe)
+      changes.push({
+        schuelerId,
+        lerngruppeId,
+        originalValue: getOriginalFachbezogeneBemerkungValue(schuelerId, lerngruppeId),
+        newValue,
+      })
+    }
+    return changes
+  }
+
+  // ---------------------------------------------------------------------------
   // Fehlstunden
   // ---------------------------------------------------------------------------
 
@@ -679,6 +753,7 @@ export const useConferenceStore = defineStore('conference', () => {
       enmExport.value = await parseEnmGzip(file)
       noteChanges.value.clear()
       bemerkungChanges.value.clear()
+      fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       dataSource.value = 'file'
       lastServerConnection.value = null
@@ -765,6 +840,7 @@ export const useConferenceStore = defineStore('conference', () => {
       enmExport.value = await parseEnmGzip(buffer)
       noteChanges.value.clear()
       bemerkungChanges.value.clear()
+      fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       dataSource.value = 'server'
       lastServerConnection.value = {
@@ -806,6 +882,7 @@ export const useConferenceStore = defineStore('conference', () => {
     selectedLerngruppeId.value = null
     noteChanges.value.clear()
     bemerkungChanges.value.clear()
+    fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
     dataSource.value = null
     lastServerConnection.value = null
@@ -835,6 +912,8 @@ export const useConferenceStore = defineStore('conference', () => {
     noteChangeCount,
     hasBemerkungChanges,
     bemerkungChangeCount,
+    hasFachbezogeneBemerkungChanges,
+    fachbezogeneBemerkungChangeCount,
     hasFehlstundenChanges,
     fehlstundenChangeCount,
     hasAnyChanges,
@@ -857,6 +936,10 @@ export const useConferenceStore = defineStore('conference', () => {
     updateBemerkungenValue,
     isBemerkungChanged,
     listBemerkungChanges,
+    getFachbezogeneBemerkungValue,
+    updateFachbezogeneBemerkungValue,
+    isFachbezogeneBemerkungChanged,
+    listFachbezogeneBemerkungChanges,
     // Fehlstunden
     getFehlstundenValue,
     updateFehlstundenValue,
