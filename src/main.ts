@@ -1230,7 +1230,7 @@ const App = defineComponent({
                             ]),
                             h('tbody', lupeSubjects.map(subject => h('tr', [
                               h('td', { class: 'lupe-table-fach' }, subject.fachKuerzel),
-                              h('td', subject.kursart),
+                              h('td', { class: subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart' }, subject.kursart),
                               h('td', subject.lehrerText),
                               h('td', { class: `lupe-table-note-cell ${subject.tone.label}`.trim() }, [
                                 h('select', {

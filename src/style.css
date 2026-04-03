@@ -1126,6 +1126,15 @@ td.changed {
   color: #1a1a18;
 }
 
+.lupe-table-kursart {
+  font-weight: 600;
+}
+
+.lupe-table-kursart.is-lk {
+  background: #eef5ff;
+  color: #204a86;
+}
+
 .lupe-table-note-cell {
   width: 120px;
   padding: 4px 8px;
@@ -1220,6 +1229,10 @@ td.changed {
   color: #5f5e5a;
   margin-bottom: 8px;
   text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lupe-fach-note {
