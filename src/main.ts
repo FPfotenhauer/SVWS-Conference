@@ -21,6 +21,8 @@ type RuntimeSvwsConfig = {
   trustSelfSigned: boolean
 }
 
+type LupeColumnKey = 'fach' | 'kursart' | 'lehrer' | 'fs' | 'fsu' | 'note'
+
 const RUNTIME_CONFIG_STORAGE_KEY = 'svws-conference.runtime-config'
 
 declare const __SVWS_DEFAULTS__: Partial<SvwsDefaults> | undefined
@@ -214,6 +216,25 @@ const App = defineComponent({
     const selectedSchuelerId = ref<number | null>(null)
     const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
     const lupeOpen = ref(false)
+    const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
+    const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
+    const notenAnzeigeMode = ref<'noten' | 'punkte'>('noten')
+    const lupeColumnWidths = ref<Record<LupeColumnKey, number>>({
+      fach: 96,
+      kursart: 78,
+      lehrer: 128,
+      fs: 66,
+      fsu: 66,
+      note: 108,
+    })
+    const lupeMinColumnWidths: Record<LupeColumnKey, number> = {
+      fach: 56,
+      kursart: 52,
+      lehrer: 84,
+      fs: 48,
+      fsu: 48,
+      note: 78,
+    }
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
     const timerModalOpen = ref(false)
@@ -230,6 +251,7 @@ const App = defineComponent({
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
+    let lupeResizeCleanup: (() => void) | null = null
 
     function persistRuntimeConfig() {
       if (typeof window === 'undefined') return
@@ -367,9 +389,42 @@ const App = defineComponent({
       startTimerFromCurrentPreset()
     }
 
+    function startLupeColumnResize(column: LupeColumnKey, event: MouseEvent) {
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.button !== 0) return
+
+      if (lupeResizeCleanup) {
+        lupeResizeCleanup()
+        lupeResizeCleanup = null
+      }
+
+      const startX = event.clientX
+      const startWidth = lupeColumnWidths.value[column]
+      const minWidth = lupeMinColumnWidths[column]
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX
+        lupeColumnWidths.value[column] = Math.max(minWidth, Math.round(startWidth + delta))
+      }
+
+      const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+        lupeResizeCleanup = null
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+      lupeResizeCleanup = onMouseUp
+    }
+
     onUnmounted(() => {
       clearTimerInterval()
       clearTimerFeedbackTimeout()
+      if (lupeResizeCleanup) {
+        lupeResizeCleanup()
+      }
     })
 
     async function connectToServer() {
@@ -622,6 +677,16 @@ const App = defineComponent({
       const notenOptions = (store.enmExport?.noten ?? [])
         .slice()
         .sort((a, b) => b.notenpunkte - a.notenpunkte)
+      const notenpunkteByKuerzel = new Map<Notenkuerzel, number>(notenOptions.map(item => [item.kuerzel, item.notenpunkte]))
+
+      function getNoteDisplay(note: Notenkuerzel | null): string {
+        if (!note) return '–'
+        if (notenAnzeigeMode.value === 'punkte') {
+          const points = notenpunkteByKuerzel.get(note)
+          return typeof points === 'number' && Number.isFinite(points) ? String(points) : note
+        }
+        return note
+      }
 
       if (klasse?.schueler.length && !klasse.schueler.some(entry => entry.schueler.id === selectedSchuelerId.value)) {
         selectedSchuelerId.value = klasse.schueler[0].schueler.id
@@ -711,7 +776,7 @@ const App = defineComponent({
       const lehrerKuerzelById = new Map((store.enmExport?.lehrer ?? []).map(item => [item.id, item.kuerzel]))
       const klasseLerngruppeById = new Map((klasse?.lerngruppen ?? []).map(item => [item.id, item]))
 
-      const lupeCards = selectedSchueler && klasse
+      const lupeSubjects = selectedSchueler && klasse
         ? klasse.faecher.flatMap(fach => {
           const lgId = selectedSchuelerLerngruppenByFachId.get(fach.id)
           // Fach wird vom Schüler nicht belegt -> nicht erteilt -> nicht anzeigen.
@@ -728,37 +793,57 @@ const App = defineComponent({
           }
 
           const tone = lupeTone(note)
-          const availableNotes = store.enmExport?.noten ?? []
           const lerngruppe = klasseLerngruppeById.get(lgId)
           const lehrerKuerzel = lerngruppe
             ? (lerngruppe.lehrerID ?? lerngruppe.idsLehrer ?? [])
               .map(id => lehrerKuerzelById.get(id))
               .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
             : []
-          return [h('div', { class: `lupe-fach ${tone.frame}` }, [
-            h('div', { class: 'lupe-fach-k' }, fach.kuerzelAnzeige || fach.kuerzel),
-            h('div', { class: 'lupe-fach-fn' }, fach.bezeichnung?.trim() || fach.kuerzelAnzeige || fach.kuerzel),
-            lgId
-              ? h('select', {
-                class: `lupe-fach-note-select ${tone.note}`,
-                value: note ?? '',
-                onChange: (event: Event) => {
-                  const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
-                  store.updateNote(selectedSchueler.schueler.id, lgId, newNote || null)
-                },
-              }, [
-                h('option', { value: '' }, '–'),
-                ...availableNotes.map((n: EnmNote) => h('option', { value: n.kuerzel }, n.kuerzel)),
-              ])
-              : h('div', { class: `lupe-fach-note ${tone.note}` }, note ?? '–'),
-            h('div', { class: `lupe-fach-label ${tone.label}` }, tone.text),
-            h('div', { class: 'lupe-fach-lehrer' }, lehrerKuerzel.length ? lehrerKuerzel.join(', ') : '–'),
-          ])]
+          const fachKuerzel = fach.kuerzelAnzeige || fach.kuerzel
+          return [{
+            fachId: fach.id,
+            fachKuerzel,
+            fachName: fach.bezeichnung?.trim() || fachKuerzel,
+            kursart: lerngruppe?.kursartKuerzel ?? '–',
+            lehrerText: lehrerKuerzel.length ? lehrerKuerzel.join(', ') : '–',
+            lgId,
+            note,
+            tone,
+            fehlstundenFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenFach'),
+            fehlstundenUnentschuldigtFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenUnentschuldigtFach'),
+            fachbezogeneBemerkung: store.getFachbezogeneBemerkungValue(selectedSchueler.schueler.id, lgId),
+          }]
         })
+        : []
+
+      const lupeCards = selectedSchueler
+        ? lupeSubjects.map(subject => h('div', { class: `lupe-fach ${subject.tone.frame}` }, [
+          h('div', { class: 'lupe-fach-k' }, subject.fachKuerzel),
+          h('div', { class: 'lupe-fach-fn' }, subject.fachName),
+          h('select', {
+            class: `lupe-fach-note-select ${subject.tone.note}`,
+            value: subject.note ?? '',
+            onChange: (event: Event) => {
+              const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+              store.updateNote(selectedSchueler.schueler.id, subject.lgId, newNote || null)
+            },
+          }, [
+            h('option', { value: '' }, '–'),
+            ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, getNoteDisplay(n.kuerzel))),
+          ]),
+          h('div', { class: `lupe-fach-label ${subject.tone.label}` }, subject.tone.text),
+          h('div', { class: 'lupe-fach-lehrer' }, subject.lehrerText),
+        ]))
         : []
 
       const timerLabel = formatTimer(timerRemainingSeconds.value)
       const showTimerChip = timerRunning.value || timerRemainingSeconds.value !== timerTotalSeconds.value || timerFinishedFlash.value
+      const lupeTableMinWidth = lupeColumnWidths.value.fach
+        + lupeColumnWidths.value.kursart
+        + lupeColumnWidths.value.lehrer
+        + (lupeFehlstundenMode.value === 'fach' ? lupeColumnWidths.value.fs + lupeColumnWidths.value.fsu : 0)
+        + lupeColumnWidths.value.note
+        + 260
 
       const schuelerById = new Map((store.enmExport?.schueler ?? []).map(item => [item.id, item]))
       const lerngruppeById = new Map((store.enmExport?.lerngruppen ?? []).map(item => [item.id, item]))
@@ -794,6 +879,19 @@ const App = defineComponent({
         }
       })
 
+      const fachbezogeneBemerkungChanges = store.listFachbezogeneBemerkungChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+        const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+        return {
+          typ: 'Fachbemerkung',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`,
+          alt: change.originalValue?.trim() || '–',
+          neu: change.newValue?.trim() || '–',
+        }
+      })
+
       const fehlstundenLabels = {
         fehlstundenGesamt: 'Fehlstunden gesamt',
         fehlstundenGesamtUnentschuldigt: 'Fehlstunden unentschuldigt',
@@ -810,7 +908,25 @@ const App = defineComponent({
         }
       })
 
-      const allChanges = [...noteChanges, ...fehlstundenChanges, ...bemerkungChanges]
+      const fachbezogeneFehlstundenLabels = {
+        fehlstundenFach: 'FS',
+        fehlstundenUnentschuldigtFach: 'FSU',
+      } as const
+
+      const fachbezogeneFehlstundenChanges = store.listFachbezogeneFehlstundenChanges().map(change => {
+        const schueler = schuelerById.get(change.schuelerId)
+        const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+        const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+        return {
+          typ: 'Fachfehlstunden',
+          schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+          feld: `${fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`} ${fachbezogeneFehlstundenLabels[change.field]}`,
+          alt: String(change.originalValue),
+          neu: String(change.newValue),
+        }
+      })
+
+      const allChanges = [...noteChanges, ...fehlstundenChanges, ...fachbezogeneFehlstundenChanges, ...bemerkungChanges, ...fachbezogeneBemerkungChanges]
       const exportTargetLabel = store.dataSource === 'server'
         ? 'SVWS-Server (Import v2)'
         : store.dataSource === 'file'
@@ -984,6 +1100,20 @@ const App = defineComponent({
                   },
                 }, 'Lerngruppe'),
               ]),
+              h('div', { class: 'mode-tabs' }, [
+                h('button', {
+                  class: notenAnzeigeMode.value === 'noten' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    notenAnzeigeMode.value = 'noten'
+                  },
+                }, 'Noten'),
+                h('button', {
+                  class: notenAnzeigeMode.value === 'punkte' ? 'mode-tab active' : 'mode-tab',
+                  onClick: () => {
+                    notenAnzeigeMode.value = 'punkte'
+                  },
+                }, 'Punkte'),
+              ]),
               h('div', { class: 'spacer' }),
               h('button', {
                 class: lupeOpen.value ? 'icon-btn active' : 'icon-btn',
@@ -1067,7 +1197,7 @@ const App = defineComponent({
                               },
                             }, [
                               h('option', { value: '' }, '–'),
-                              ...notenOptions.map(item => h('option', { value: item.kuerzel }, item.kuerzel)),
+                              ...notenOptions.map(item => h('option', { value: item.kuerzel }, getNoteDisplay(item.kuerzel))),
                             ]),
                           ])
                         }
@@ -1079,7 +1209,7 @@ const App = defineComponent({
                             startEditingCell(entry.schueler.id, lgId)
                           },
                         }, [
-                          h('span', { class: gradeClass(note) }, note ?? '–'),
+                          h('span', { class: gradeClass(note) }, getNoteDisplay(note)),
                         ])
                       }),
                     ])
@@ -1102,6 +1232,50 @@ const App = defineComponent({
                     h('div', [
                       h('div', { class: 'lupe-name' }, selectedSchueler ? `${selectedSchueler.schueler.nachname}, ${selectedSchueler.schueler.vorname}` : 'Kein Schueler gewaehlt'),
                       h('div', { class: 'lupe-meta' }, klasse && selectedSchuelerIndex >= 0 ? `${selectedKlasse?.kuerzelAnzeige ?? selectedKlasse?.kuerzel ?? '–'} · Schueler ${selectedSchuelerIndex + 1} von ${klasse.schueler.length}` : ''),
+                    ]),
+                    h('div', { class: 'lupe-controls' }, [
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: lupeViewMode.value === 'kachel' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeViewMode.value = 'kachel'
+                          },
+                        }, 'Kacheln'),
+                        h('button', {
+                          class: lupeViewMode.value === 'tabelle' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeViewMode.value = 'tabelle'
+                          },
+                        }, 'Tabelle'),
+                      ]),
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: lupeFehlstundenMode.value === 'gesamt' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeFehlstundenMode.value = 'gesamt'
+                          },
+                        }, 'FSG'),
+                        h('button', {
+                          class: lupeFehlstundenMode.value === 'fach' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            lupeFehlstundenMode.value = 'fach'
+                          },
+                        }, 'FSF'),
+                      ]),
+                      h('div', { class: 'lupe-view-toggle' }, [
+                        h('button', {
+                          class: notenAnzeigeMode.value === 'noten' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            notenAnzeigeMode.value = 'noten'
+                          },
+                        }, 'Noten'),
+                        h('button', {
+                          class: notenAnzeigeMode.value === 'punkte' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                          onClick: () => {
+                            notenAnzeigeMode.value = 'punkte'
+                          },
+                        }, 'Punkte'),
+                      ]),
                     ]),
                     h('div', { class: 'lupe-nav' }, [
                       h('button', {
@@ -1173,9 +1347,114 @@ const App = defineComponent({
                         : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
                     ])),
                   ]),
-                  h('div', { class: 'lupe-grid-wrap' }, [
-                    lupeCards.length
-                      ? h('div', { class: 'lupe-grid' }, lupeCards)
+                  h('div', { class: lupeViewMode.value === 'tabelle' ? 'lupe-grid-wrap lupe-grid-wrap-table' : 'lupe-grid-wrap' }, [
+                    lupeSubjects.length
+                      ? lupeViewMode.value === 'kachel'
+                        ? h('div', { class: 'lupe-grid' }, lupeCards)
+                        : h('div', { class: 'lupe-table-wrap' }, [
+                          h('table', { class: 'lupe-table', style: { minWidth: `${lupeTableMinWidth}px` } }, [
+                            h('thead', [
+                              h('tr', [
+                                h('th', { class: 'lupe-col-fach lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fach}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Fachkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fach', event) }),
+                                ]),
+                                h('th', { class: 'lupe-col-kursart lupe-resizable-col', style: { width: `${lupeColumnWidths.value.kursart}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Kursart'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('kursart', event) }),
+                                ]),
+                                h('th', { class: 'lupe-col-lehrer lupe-resizable-col', style: { width: `${lupeColumnWidths.value.lehrer}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, 'Lehrerkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('lehrer', event) }),
+                                ]),
+                                ...(lupeFehlstundenMode.value === 'fach'
+                                  ? [
+                                    h('th', { class: 'lupe-col-fs lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fs}px` } }, [
+                                      h('span', { class: 'lupe-th-label' }, 'FS'),
+                                      h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fs', event) }),
+                                    ]),
+                                    h('th', { class: 'lupe-col-fsu lupe-resizable-col', style: { width: `${lupeColumnWidths.value.fsu}px` } }, [
+                                      h('span', { class: 'lupe-th-label' }, 'FSU'),
+                                      h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('fsu', event) }),
+                                    ]),
+                                  ]
+                                  : []),
+                                h('th', { class: 'lupe-col-note lupe-resizable-col', style: { width: `${lupeColumnWidths.value.note}px` } }, [
+                                  h('span', { class: 'lupe-th-label' }, notenAnzeigeMode.value === 'punkte' ? 'Punkte' : 'Notenkürzel'),
+                                  h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => startLupeColumnResize('note', event) }),
+                                ]),
+                                h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen'),
+                              ]),
+                            ]),
+                            h('tbody', lupeSubjects.map(subject => h('tr', [
+                              h('td', { class: 'lupe-table-fach lupe-col-fach', style: { width: `${lupeColumnWidths.value.fach}px` } }, subject.fachKuerzel),
+                              h('td', { class: `${subject.kursart === 'LK' ? 'lupe-table-kursart is-lk' : 'lupe-table-kursart'} lupe-col-kursart`.trim(), style: { width: `${lupeColumnWidths.value.kursart}px` } }, subject.kursart),
+                              h('td', { class: 'lupe-col-lehrer', style: { width: `${lupeColumnWidths.value.lehrer}px` } }, subject.lehrerText),
+                              ...(lupeFehlstundenMode.value === 'fach'
+                                ? [
+                                  h('td', { class: `lupe-col-fs lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach') ? 'changed' : ''}`.trim(), style: { width: `${lupeColumnWidths.value.fs}px` } }, [
+                                    h('input', {
+                                      type: 'number',
+                                      min: '0',
+                                      step: '1',
+                                      inputmode: 'numeric',
+                                      class: 'lupe-table-number-input',
+                                      value: subject.fehlstundenFach,
+                                      onInput: (event: Event) => {
+                                        if (!selectedSchueler) return
+                                        const value = Number((event.target as HTMLInputElement).value)
+                                        store.updateFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenFach', value)
+                                      },
+                                    }),
+                                  ]),
+                                  h('td', { class: `lupe-col-fsu lupe-table-number-cell ${selectedSchueler && store.isFachbezogeneFehlstundenChanged(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach') ? 'changed' : ''}`.trim(), style: { width: `${lupeColumnWidths.value.fsu}px` } }, [
+                                    h('input', {
+                                      type: 'number',
+                                      min: '0',
+                                      max: String(subject.fehlstundenFach),
+                                      step: '1',
+                                      inputmode: 'numeric',
+                                      class: 'lupe-table-number-input',
+                                      value: subject.fehlstundenUnentschuldigtFach,
+                                      onInput: (event: Event) => {
+                                        if (!selectedSchueler) return
+                                        const value = Number((event.target as HTMLInputElement).value)
+                                        store.updateFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, subject.lgId, 'fehlstundenUnentschuldigtFach', value)
+                                      },
+                                    }),
+                                  ]),
+                                ]
+                                : []),
+                              h('td', { class: `lupe-table-note-cell ${subject.tone.label} lupe-col-note`.trim(), style: { width: `${lupeColumnWidths.value.note}px` } }, [
+                                h('select', {
+                                  class: `lupe-table-note-select ${subject.tone.note}`,
+                                  value: subject.note ?? '',
+                                  onChange: (event: Event) => {
+                                    if (!selectedSchueler) return
+                                    const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                                    store.updateNote(selectedSchueler.schueler.id, subject.lgId, newNote || null)
+                                  },
+                                }, [
+                                  h('option', { value: '' }, '–'),
+                                  ...notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, getNoteDisplay(n.kuerzel))),
+                                ]),
+                              ]),
+                              h('td', { class: 'lupe-col-remark' }, [
+                                h('input', {
+                                  type: 'text',
+                                  class: `lupe-table-remark-input ${selectedSchueler && store.isFachbezogeneBemerkungChanged(selectedSchueler.schueler.id, subject.lgId) ? 'changed' : ''}`.trim(),
+                                  value: subject.fachbezogeneBemerkung?.trim() ?? '',
+                                  placeholder: 'Keine fachbezogene Bemerkung',
+                                  onInput: (event: Event) => {
+                                    if (!selectedSchueler) return
+                                    const value = (event.target as HTMLInputElement).value.trim()
+                                    store.updateFachbezogeneBemerkungValue(selectedSchueler.schueler.id, subject.lgId, value || null)
+                                  },
+                                }),
+                              ]),
+                            ]))),
+                          ]),
+                        ])
                       : h('p', { class: 'lupe-empty' }, 'Keine erteilten Faecher in der aktuellen Auswahl.'),
                   ]),
                 ]),
