@@ -17,7 +17,6 @@ type RuntimeSvwsConfig = {
   baseUrl: string
   schema: string
   username: string
-  password: string
   trustSelfSigned: boolean
 }
 
@@ -84,7 +83,14 @@ function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
     const raw = window.localStorage.getItem(RUNTIME_CONFIG_STORAGE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as Partial<RuntimeSvwsConfig>
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+    if (typeof parsed !== 'object' || parsed === null) return {}
+
+    if ('password' in parsed) {
+      delete (parsed as Partial<RuntimeSvwsConfig> & { password?: string }).password
+      window.localStorage.setItem(RUNTIME_CONFIG_STORAGE_KEY, JSON.stringify(parsed))
+    }
+
+    return parsed
   } catch {
     return {}
   }
@@ -210,7 +216,7 @@ const App = defineComponent({
     const serverUrl = ref(storedConfig.baseUrl ?? buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
     const serverSchema = ref(storedConfig.schema ?? defaults.schema ?? '')
     const username = ref(storedConfig.username ?? defaults.user ?? '')
-    const password = ref(storedConfig.password ?? defaults.password ?? '')
+    const password = ref('')
     const trustSelfSigned = ref(storedConfig.trustSelfSigned ?? false)
     const status = ref('Noch keine Daten geladen.')
     const selectedSchuelerId = ref<number | null>(null)
@@ -259,7 +265,6 @@ const App = defineComponent({
         baseUrl: serverUrl.value,
         schema: serverSchema.value,
         username: username.value,
-        password: password.value,
         trustSelfSigned: trustSelfSigned.value,
       }
       try {
@@ -542,6 +547,7 @@ const App = defineComponent({
     }
 
     function logout() {
+      password.value = ''
       store.reset()
       selectedSchuelerId.value = null
       activeMode.value = 'klasse'
@@ -993,12 +999,11 @@ const App = defineComponent({
                 h('input', {
                   class: 'tile-input',
                   type: 'password',
-                  placeholder: 'Passwort',
+                  placeholder: 'Passwort (wird nicht gespeichert)',
                   value: password.value,
                   autocomplete: 'current-password',
                   onInput: (event: Event) => {
                     password.value = (event.target as HTMLInputElement).value
-                    persistRuntimeConfig()
                   },
                 }),
               ]),
