@@ -254,6 +254,7 @@ const App = defineComponent({
     const timerFinishedFlash = ref(false)
     const timerSoundMuted = ref(false)
     const timerRepeatEnabled = ref(false)
+    const lastSavedAt = ref<Date | null>(null)
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
@@ -424,6 +425,15 @@ const App = defineComponent({
       lupeResizeCleanup = onMouseUp
     }
 
+    function getSavedIndicatorText(): string | null {
+      if (!lastSavedAt.value || store.hasAnyChanges) return null
+      const time = lastSavedAt.value.toLocaleTimeString('de-DE', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      return `Gespeichert um ${time}`
+    }
+
     onUnmounted(() => {
       clearTimerInterval()
       clearTimerFeedbackTimeout()
@@ -449,6 +459,7 @@ const App = defineComponent({
       if (store.currentKlasse?.schueler[0]) {
         selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
       }
+      lastSavedAt.value = null
 
       status.value = store.error
         ? `Fehler: ${store.error}`
@@ -515,6 +526,7 @@ const App = defineComponent({
       if (store.currentKlasse?.schueler[0]) {
         selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
       }
+      lastSavedAt.value = null
       status.value = store.error
         ? `Fehler: ${store.error}`
         : `Datei geladen: ${file.name}`
@@ -556,6 +568,7 @@ const App = defineComponent({
       logoutConfirmOpen.value = false
       exportConfirmOpen.value = false
       editingCell.value = null
+      lastSavedAt.value = null
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
     }
 
@@ -634,6 +647,7 @@ const App = defineComponent({
               }
               : undefined,
           )
+          lastSavedAt.value = new Date()
           status.value = 'Änderungen wurden an den SVWS-Server übertragen.'
           return
         }
@@ -643,7 +657,7 @@ const App = defineComponent({
           if (blob.size === 0) {
             throw new Error('Die erzeugte Exportdatei ist leer.')
           }
-          const file = new File([blob], 'enm.json.gz', { type: 'application/gzip' })
+          const file = new File([blob], 'enm.changed.json.gz', { type: 'application/gzip' })
           const url = URL.createObjectURL(file)
           const a = document.createElement('a')
           a.href = url
@@ -659,7 +673,9 @@ const App = defineComponent({
             URL.revokeObjectURL(url)
             a.remove()
           }, 10000)
-          status.value = `Geänderte enm.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
+          store.applyPatchedChangesLocally()
+          lastSavedAt.value = new Date()
+          status.value = `Geänderte enm.changed.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
           return
         }
 
@@ -938,6 +954,7 @@ const App = defineComponent({
         : store.dataSource === 'file'
           ? 'Download als enm.changed.json.gz'
           : 'Unbekannte Datenquelle'
+      const savedIndicatorText = getSavedIndicatorText()
       const printableLogLines = [
         `Aenderungslog vom ${new Date().toLocaleString('de-DE')}`,
         `Gesamt: ${allChanges.length} Aenderungen`,
@@ -1155,6 +1172,9 @@ const App = defineComponent({
               h('div', ['Schueler: ', h('b', String(klasse.schueler.length))]),
               h('div', ['Faecher: ', h('b', String(klasse.faecher.length))]),
               h('div', [`${store.schulInfo?.schuljahr ?? '–'} / Abschnitt ${store.schulInfo?.abschnitt ?? '–'}`]),
+              savedIndicatorText
+                ? h('div', { class: 'saved-chip' }, savedIndicatorText)
+                : null,
               h('div', { class: `timer-chip ${showTimerChip ? 'visible' : ''} ${timerFinishedFlash.value ? 'done' : ''}`.trim() }, timerLabel),
             ]),
             activeMode.value === 'klasse'

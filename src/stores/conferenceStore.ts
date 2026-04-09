@@ -517,6 +517,16 @@ export const useConferenceStore = defineStore('conference', () => {
     return gzipText(text)
   }
 
+  function applyPatchedChangesLocally(): void {
+    const patched = buildPatchedExport()
+    if (!patched) {
+      throw new Error('Es sind keine ENM-Daten geladen.')
+    }
+
+    enmExport.value = patched
+    clearAllChanges()
+  }
+
   async function importPatchedExportToServer(params?: ServerConnectionParams): Promise<void> {
     const effective = params ?? lastServerConnection.value
     if (!effective) {
@@ -1035,6 +1045,7 @@ export const useConferenceStore = defineStore('conference', () => {
     clearNoteChanges,
     clearAllChanges,
     createPatchedExportGzip,
+    applyPatchedChangesLocally,
     importPatchedExportToServer,
     listNoteChanges,
     // Bemerkungen

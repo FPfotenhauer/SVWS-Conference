@@ -366,8 +366,22 @@ h1 {
   color: #3d3d3a;
 }
 
-.timer-chip {
+.saved-chip {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f6e56;
+  background: #e1f5ee;
+  border: 1px solid #9ad6c5;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.timer-chip {
+  margin-left: 0;
   display: none;
   font-size: 14px;
   font-weight: 700;
