@@ -12,7 +12,7 @@
 4. [Oberfläche im Überblick](04-oberflaeche.md)
 5. [Daten laden](05-daten-laden.md)
 6. [Konferenzübersicht nutzen](06-konferenzuebersicht.md)
-7. Datenschutz und Datensicherheit
+7. [Datenschutz und Datensicherheit](07-datenschutz.md)
 8. Fehlerbehebung
 9. FAQ
 10. Anhang
