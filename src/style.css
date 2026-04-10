@@ -1037,7 +1037,7 @@ td.changed {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid #e8e6e0;
+  border-top: 1px solid #e8e6e0;
   background: #fff;
 }
 
@@ -1047,13 +1047,49 @@ td.changed {
   background: #fafaf8;
   padding: 10px 12px;
   min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.lupe-remark-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .lupe-remark-label {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 13px;
   font-weight: 700;
   color: #3d3d3a;
+  flex: 1;
+}
+
+.lupe-remark-collapse-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: #888780;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.lupe-remark-collapse-btn:hover {
+  color: #5f5e5a;
+}
+
+.lupe-remarks-wrap.collapsed .lupe-remark-textarea,
+.lupe-remarks-wrap.collapsed .lupe-remark-text {
+  display: none;
+}
+
+.lupe-remarks-wrap.collapsed .lupe-remark-card {
+  min-height: auto;
 }
 
 .lupe-remark-text {

@@ -225,6 +225,7 @@ const App = defineComponent({
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
     const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
     const notenAnzeigeMode = ref<'noten' | 'punkte'>('noten')
+    const lupeRemarksCollapsed = ref(false)
     const lupeColumnWidths = ref<Record<LupeColumnKey, number>>({
       fach: 96,
       kursart: 78,
@@ -1356,22 +1357,6 @@ const App = defineComponent({
                       : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.totalChangeCount))]),
                   ]),
-                  h('div', { class: 'lupe-remarks-wrap' }, [
-                    ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
-                      h('h4', { class: 'lupe-remark-label' }, card.label),
-                      selectedSchueler
-                        ? h('textarea', {
-                          class: 'lupe-remark-textarea',
-                          value: card.value?.trim() ?? '',
-                          placeholder: '(Leer lassen für keine Bemerkung)',
-                          onInput: (event: Event) => {
-                            const value = (event.target as HTMLTextAreaElement).value.trim()
-                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
-                          },
-                        })
-                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
-                    ])),
-                  ]),
                   h('div', { class: lupeViewMode.value === 'tabelle' ? 'lupe-grid-wrap lupe-grid-wrap-table' : 'lupe-grid-wrap' }, [
                     lupeSubjects.length
                       ? lupeViewMode.value === 'kachel'
@@ -1481,6 +1466,31 @@ const App = defineComponent({
                           ]),
                         ])
                       : h('p', { class: 'lupe-empty' }, 'Keine erteilten Faecher in der aktuellen Auswahl.'),
+                  ]),
+                  h('div', { class: `lupe-remarks-wrap ${lupeRemarksCollapsed.value ? 'collapsed' : ''}`.trim() }, [
+                    ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
+                      h('div', { class: 'lupe-remark-header' }, [
+                        h('h4', { class: 'lupe-remark-label' }, card.label),
+                        h('button', {
+                          class: 'lupe-remark-collapse-btn',
+                          title: lupeRemarksCollapsed.value ? 'Ausfahren' : 'Einfahren',
+                          onClick: () => {
+                            lupeRemarksCollapsed.value = !lupeRemarksCollapsed.value
+                          },
+                        }, lupeRemarksCollapsed.value ? '▶' : '▼'),
+                      ]),
+                      selectedSchueler
+                        ? h('textarea', {
+                          class: 'lupe-remark-textarea',
+                          value: card.value?.trim() ?? '',
+                          placeholder: '(Leer lassen für keine Bemerkung)',
+                          onInput: (event: Event) => {
+                            const value = (event.target as HTMLTextAreaElement).value.trim()
+                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
+                          },
+                        })
+                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
+                    ])),
                   ]),
                 ]),
               ])
