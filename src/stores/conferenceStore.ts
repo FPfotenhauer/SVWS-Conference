@@ -147,6 +147,19 @@ function buildAliveUrl(baseUrl: string): string {
   return `${normalized}/status/alive`
 }
 
+function canUseDevelopmentProxy(): boolean {
+  if (typeof window === 'undefined') return false
+  const { protocol, hostname, port } = window.location
+  if (protocol !== 'http:' && protocol !== 'https:') return false
+
+  const isLoopbackHost = hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '::1'
+    || hostname === '[::1]'
+    || hostname.endsWith('.localhost')
+  return isLoopbackHost && port === '5173'
+}
+
 async function readResponseError(response: Response): Promise<string> {
   const contentType = response.headers.get('Content-Type') ?? ''
   if (contentType.includes('application/json')) {
@@ -158,19 +171,21 @@ async function readResponseError(response: Response): Promise<string> {
 
 async function checkServerAlive(baseUrl: string, trustSelfSigned: boolean): Promise<void> {
   let response: Response | null = null
-  let useDirectFallback = false
+  let useDirectFallback = !canUseDevelopmentProxy()
 
-  try {
-    response = await fetch('/api/svws/alive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/plain, application/json;q=0.9, */*;q=0.8',
-      },
-      body: JSON.stringify({ baseUrl, trustSelfSigned }),
-    })
-  } catch {
-    useDirectFallback = true
+  if (!useDirectFallback) {
+    try {
+      response = await fetch('/api/svws/alive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain, application/json;q=0.9, */*;q=0.8',
+        },
+        body: JSON.stringify({ baseUrl, trustSelfSigned }),
+      })
+    } catch {
+      useDirectFallback = true
+    }
   }
 
   if (!useDirectFallback && response && (response.status === 404 || response.status === 405)) {
@@ -541,12 +556,12 @@ export const useConferenceStore = defineStore('conference', () => {
     const text = JSON.stringify(patched)
     const gzipBlob = await gzipText(text)
     const gzipBytes = new Uint8Array(await gzipBlob.arrayBuffer())
+    const authHeader = `Basic ${encodeBasicAuth(effective.username, effective.password)}`
 
     let response: Response | null = null
-    let useDirectFallback = false
+    let useDirectFallback = !canUseDevelopmentProxy()
 
     const runDirectImport = async (): Promise<Response> => {
-      const authHeader = `Basic ${encodeBasicAuth(effective.username, effective.password)}`
       const multipart = new FormData()
       multipart.append('data', gzipBlob, 'enm.json.gz')
       return fetch(buildEnmImportUrl(effective.baseUrl, effective.schema), {
@@ -559,20 +574,25 @@ export const useConferenceStore = defineStore('conference', () => {
       })
     }
 
-    try {
-      response = await fetch('/api/svws/enm-import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8',
-        },
-        body: JSON.stringify({
-          ...effective,
-          gzipBase64: toBase64(gzipBytes),
-        }),
-      })
-    } catch {
-      useDirectFallback = true
+    if (!useDirectFallback) {
+      try {
+        response = await fetch('/api/svws/enm-import', {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8',
+          },
+          body: JSON.stringify({
+            baseUrl: effective.baseUrl,
+            schema: effective.schema,
+            trustSelfSigned: effective.trustSelfSigned,
+            gzipBase64: toBase64(gzipBytes),
+          }),
+        })
+      } catch {
+        useDirectFallback = true
+      }
     }
 
     if (!useDirectFallback && response && (response.status === 404 || response.status === 405)) {
@@ -892,19 +912,27 @@ export const useConferenceStore = defineStore('conference', () => {
       await checkServerAlive(params.baseUrl, params.trustSelfSigned)
 
       let response: Response | null = null
-      let useDirectFallback = false
+      let useDirectFallback = !canUseDevelopmentProxy()
+      const authHeader = `Basic ${encodeBasicAuth(params.username, params.password)}`
 
-      try {
-        response = await fetch('/api/svws/enm', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/octet-stream, application/gzip;q=0.9',
-          },
-          body: JSON.stringify(params),
-        })
-      } catch {
-        useDirectFallback = true
+      if (!useDirectFallback) {
+        try {
+          response = await fetch('/api/svws/enm', {
+            method: 'POST',
+            headers: {
+              'Authorization': authHeader,
+              'Content-Type': 'application/json',
+              'Accept': 'application/octet-stream, application/gzip;q=0.9',
+            },
+            body: JSON.stringify({
+              baseUrl: params.baseUrl,
+              schema: params.schema,
+              trustSelfSigned: params.trustSelfSigned,
+            }),
+          })
+        } catch {
+          useDirectFallback = true
+        }
       }
 
       if (!useDirectFallback && response && !response.ok && (response.status === 404 || response.status === 405)) {
@@ -913,7 +941,6 @@ export const useConferenceStore = defineStore('conference', () => {
 
       if (useDirectFallback) {
         const candidateUrls = buildEnmCandidateUrls(params.baseUrl, params.schema)
-        const authHeader = `Basic ${encodeBasicAuth(params.username, params.password)}`
         let fallbackResponse: Response | null = null
 
         for (const candidateUrl of candidateUrls) {
