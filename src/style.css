@@ -366,8 +366,22 @@ h1 {
   color: #3d3d3a;
 }
 
-.timer-chip {
+.saved-chip {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f6e56;
+  background: #e1f5ee;
+  border: 1px solid #9ad6c5;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.timer-chip {
+  margin-left: 0;
   display: none;
   font-size: 14px;
   font-weight: 700;
@@ -456,6 +470,9 @@ tbody tr:hover td {
 
 tbody tr.selected td {
   background: #eeedfe;
+  box-shadow:
+    inset 0 1px 0 #95b3df,
+    inset 0 -1px 0 #95b3df;
 }
 
 td {
@@ -1020,7 +1037,7 @@ td.changed {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid #e8e6e0;
+  border-top: 1px solid #e8e6e0;
   background: #fff;
 }
 
@@ -1030,13 +1047,49 @@ td.changed {
   background: #fafaf8;
   padding: 10px 12px;
   min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.lupe-remark-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .lupe-remark-label {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 13px;
   font-weight: 700;
   color: #3d3d3a;
+  flex: 1;
+}
+
+.lupe-remark-collapse-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: #888780;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.lupe-remark-collapse-btn:hover {
+  color: #5f5e5a;
+}
+
+.lupe-remarks-wrap.collapsed .lupe-remark-textarea,
+.lupe-remarks-wrap.collapsed .lupe-remark-text {
+  display: none;
+}
+
+.lupe-remarks-wrap.collapsed .lupe-remark-card {
+  min-height: auto;
 }
 
 .lupe-remark-text {

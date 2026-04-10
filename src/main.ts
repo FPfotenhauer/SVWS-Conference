@@ -17,7 +17,6 @@ type RuntimeSvwsConfig = {
   baseUrl: string
   schema: string
   username: string
-  password: string
   trustSelfSigned: boolean
 }
 
@@ -84,7 +83,14 @@ function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
     const raw = window.localStorage.getItem(RUNTIME_CONFIG_STORAGE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as Partial<RuntimeSvwsConfig>
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+    if (typeof parsed !== 'object' || parsed === null) return {}
+
+    if ('password' in parsed) {
+      delete (parsed as Partial<RuntimeSvwsConfig> & { password?: string }).password
+      window.localStorage.setItem(RUNTIME_CONFIG_STORAGE_KEY, JSON.stringify(parsed))
+    }
+
+    return parsed
   } catch {
     return {}
   }
@@ -210,7 +216,7 @@ const App = defineComponent({
     const serverUrl = ref(storedConfig.baseUrl ?? buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
     const serverSchema = ref(storedConfig.schema ?? defaults.schema ?? '')
     const username = ref(storedConfig.username ?? defaults.user ?? '')
-    const password = ref(storedConfig.password ?? defaults.password ?? '')
+    const password = ref('')
     const trustSelfSigned = ref(storedConfig.trustSelfSigned ?? false)
     const status = ref('Noch keine Daten geladen.')
     const selectedSchuelerId = ref<number | null>(null)
@@ -219,6 +225,7 @@ const App = defineComponent({
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
     const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
     const notenAnzeigeMode = ref<'noten' | 'punkte'>('noten')
+    const lupeRemarksCollapsed = ref(false)
     const lupeColumnWidths = ref<Record<LupeColumnKey, number>>({
       fach: 96,
       kursart: 78,
@@ -248,6 +255,7 @@ const App = defineComponent({
     const timerFinishedFlash = ref(false)
     const timerSoundMuted = ref(false)
     const timerRepeatEnabled = ref(false)
+    const lastSavedAt = ref<Date | null>(null)
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
@@ -259,7 +267,6 @@ const App = defineComponent({
         baseUrl: serverUrl.value,
         schema: serverSchema.value,
         username: username.value,
-        password: password.value,
         trustSelfSigned: trustSelfSigned.value,
       }
       try {
@@ -419,6 +426,15 @@ const App = defineComponent({
       lupeResizeCleanup = onMouseUp
     }
 
+    function getSavedIndicatorText(): string | null {
+      if (!lastSavedAt.value || store.hasAnyChanges) return null
+      const time = lastSavedAt.value.toLocaleTimeString('de-DE', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      return `Gespeichert um ${time}`
+    }
+
     onUnmounted(() => {
       clearTimerInterval()
       clearTimerFeedbackTimeout()
@@ -444,6 +460,7 @@ const App = defineComponent({
       if (store.currentKlasse?.schueler[0]) {
         selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
       }
+      lastSavedAt.value = null
 
       status.value = store.error
         ? `Fehler: ${store.error}`
@@ -510,6 +527,7 @@ const App = defineComponent({
       if (store.currentKlasse?.schueler[0]) {
         selectedSchuelerId.value = store.currentKlasse.schueler[0].schueler.id
       }
+      lastSavedAt.value = null
       status.value = store.error
         ? `Fehler: ${store.error}`
         : `Datei geladen: ${file.name}`
@@ -542,6 +560,7 @@ const App = defineComponent({
     }
 
     function logout() {
+      password.value = ''
       store.reset()
       selectedSchuelerId.value = null
       activeMode.value = 'klasse'
@@ -550,6 +569,7 @@ const App = defineComponent({
       logoutConfirmOpen.value = false
       exportConfirmOpen.value = false
       editingCell.value = null
+      lastSavedAt.value = null
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
     }
 
@@ -628,6 +648,7 @@ const App = defineComponent({
               }
               : undefined,
           )
+          lastSavedAt.value = new Date()
           status.value = 'Änderungen wurden an den SVWS-Server übertragen.'
           return
         }
@@ -637,7 +658,7 @@ const App = defineComponent({
           if (blob.size === 0) {
             throw new Error('Die erzeugte Exportdatei ist leer.')
           }
-          const file = new File([blob], 'enm.json.gz', { type: 'application/gzip' })
+          const file = new File([blob], 'enm.changed.json.gz', { type: 'application/gzip' })
           const url = URL.createObjectURL(file)
           const a = document.createElement('a')
           a.href = url
@@ -653,7 +674,9 @@ const App = defineComponent({
             URL.revokeObjectURL(url)
             a.remove()
           }, 10000)
-          status.value = `Geänderte enm.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
+          store.applyPatchedChangesLocally()
+          lastSavedAt.value = new Date()
+          status.value = `Geänderte enm.changed.json.gz wurde zum Download bereitgestellt (${blob.size} Bytes).`
           return
         }
 
@@ -932,6 +955,7 @@ const App = defineComponent({
         : store.dataSource === 'file'
           ? 'Download als enm.changed.json.gz'
           : 'Unbekannte Datenquelle'
+      const savedIndicatorText = getSavedIndicatorText()
       const printableLogLines = [
         `Aenderungslog vom ${new Date().toLocaleString('de-DE')}`,
         `Gesamt: ${allChanges.length} Aenderungen`,
@@ -993,12 +1017,11 @@ const App = defineComponent({
                 h('input', {
                   class: 'tile-input',
                   type: 'password',
-                  placeholder: 'Passwort',
+                  placeholder: 'Passwort (wird nicht gespeichert)',
                   value: password.value,
                   autocomplete: 'current-password',
                   onInput: (event: Event) => {
                     password.value = (event.target as HTMLInputElement).value
-                    persistRuntimeConfig()
                   },
                 }),
               ]),
@@ -1150,6 +1173,9 @@ const App = defineComponent({
               h('div', ['Schueler: ', h('b', String(klasse.schueler.length))]),
               h('div', ['Faecher: ', h('b', String(klasse.faecher.length))]),
               h('div', [`${store.schulInfo?.schuljahr ?? '–'} / Abschnitt ${store.schulInfo?.abschnitt ?? '–'}`]),
+              savedIndicatorText
+                ? h('div', { class: 'saved-chip' }, savedIndicatorText)
+                : null,
               h('div', { class: `timer-chip ${showTimerChip ? 'visible' : ''} ${timerFinishedFlash.value ? 'done' : ''}`.trim() }, timerLabel),
             ]),
             activeMode.value === 'klasse'
@@ -1331,22 +1357,6 @@ const App = defineComponent({
                       : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
                     h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(store.totalChangeCount))]),
                   ]),
-                  h('div', { class: 'lupe-remarks-wrap' }, [
-                    ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
-                      h('h4', { class: 'lupe-remark-label' }, card.label),
-                      selectedSchueler
-                        ? h('textarea', {
-                          class: 'lupe-remark-textarea',
-                          value: card.value?.trim() ?? '',
-                          placeholder: '(Leer lassen für keine Bemerkung)',
-                          onInput: (event: Event) => {
-                            const value = (event.target as HTMLTextAreaElement).value.trim()
-                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
-                          },
-                        })
-                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
-                    ])),
-                  ]),
                   h('div', { class: lupeViewMode.value === 'tabelle' ? 'lupe-grid-wrap lupe-grid-wrap-table' : 'lupe-grid-wrap' }, [
                     lupeSubjects.length
                       ? lupeViewMode.value === 'kachel'
@@ -1456,6 +1466,31 @@ const App = defineComponent({
                           ]),
                         ])
                       : h('p', { class: 'lupe-empty' }, 'Keine erteilten Faecher in der aktuellen Auswahl.'),
+                  ]),
+                  h('div', { class: `lupe-remarks-wrap ${lupeRemarksCollapsed.value ? 'collapsed' : ''}`.trim() }, [
+                    ...remarkCards.map(card => h('article', { class: 'lupe-remark-card' }, [
+                      h('div', { class: 'lupe-remark-header' }, [
+                        h('h4', { class: 'lupe-remark-label' }, card.label),
+                        h('button', {
+                          class: 'lupe-remark-collapse-btn',
+                          title: lupeRemarksCollapsed.value ? 'Ausfahren' : 'Einfahren',
+                          onClick: () => {
+                            lupeRemarksCollapsed.value = !lupeRemarksCollapsed.value
+                          },
+                        }, lupeRemarksCollapsed.value ? '▶' : '▼'),
+                      ]),
+                      selectedSchueler
+                        ? h('textarea', {
+                          class: 'lupe-remark-textarea',
+                          value: card.value?.trim() ?? '',
+                          placeholder: '(Leer lassen für keine Bemerkung)',
+                          onInput: (event: Event) => {
+                            const value = (event.target as HTMLTextAreaElement).value.trim()
+                            store.updateBemerkungenValue(selectedSchueler.schueler.id, card.field, value || null)
+                          },
+                        })
+                        : h('p', { class: 'lupe-remark-text' }, card.value?.trim() ? card.value : '–'),
+                    ])),
                   ]),
                 ]),
               ])

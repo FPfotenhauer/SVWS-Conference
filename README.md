@@ -20,6 +20,9 @@ npm run dev
 
 Die App läuft dann unter `http://localhost:5173`.
 
+Der lokale Vite-Server stellt nur in der Entwicklung einen Hilfs-Proxy unter `/api/svws/*` bereit.
+Dieser Proxy ist auf den lokalen Dev-Kontext beschränkt und übernimmt Zugangsdaten ausschließlich über den `Authorization`-Header, nicht über den Request-Body.
+
 ## Build für den Produktiveinsatz
 
 ```bash
@@ -68,6 +71,7 @@ Hinweis zu selbstsignierten Zertifikaten:
 
 - In der Entwicklungsumgebung (`npm run dev`) kann die Option `Zertifikat vertrauen` gesetzt werden.
 - Im statischen/offline Build kann der Browser selbstsignierte Zertifikate nicht per App-Option umgehen.
+- Produktiv- und Offline-Builds sprechen den SVWS-Server direkt aus dem Browser an; der Host der SPA erhält dabei keine ENM-Daten oder Credentials über relative Proxy-Endpunkte.
 
 CORS-Konfiguration am SVWS-Server (Beispiel für nginx als Reverse Proxy):
 

@@ -8,8 +8,6 @@ import { defineConfig, loadEnv } from 'vite'
 type ProxyPayload = {
   baseUrl: string
   schema: string
-  username: string
-  password: string
   trustSelfSigned: boolean
 }
 
@@ -116,14 +114,31 @@ function isProxyPayload(value: unknown): value is ProxyPayload {
   const candidate = value as Partial<ProxyPayload>
   return typeof candidate.baseUrl === 'string'
     && typeof candidate.schema === 'string'
-    && typeof candidate.username === 'string'
-    && typeof candidate.password === 'string'
     && typeof candidate.trustSelfSigned === 'boolean'
 }
 
 function isImportPayload(value: unknown): value is ImportPayload {
   if (!isProxyPayload(value)) return false
   return typeof (value as Partial<ImportPayload>).gzipBase64 === 'string'
+}
+
+function readBasicCredentials(req: IncomingMessage): { username: string, password: string } | null {
+  const authorization = req.headers.authorization
+  if (typeof authorization !== 'string' || !authorization.startsWith('Basic ')) {
+    return null
+  }
+
+  try {
+    const decoded = Buffer.from(authorization.slice('Basic '.length), 'base64').toString('utf8')
+    const separatorIndex = decoded.indexOf(':')
+    if (separatorIndex < 0) return null
+    return {
+      username: decoded.slice(0, separatorIndex),
+      password: decoded.slice(separatorIndex + 1),
+    }
+  } catch {
+    return null
+  }
 }
 
 export default defineConfig(({ mode }) => {
@@ -209,13 +224,19 @@ export default defineConfig(({ mode }) => {
                 return
               }
 
-              const payload = parsed
-              if (!payload.baseUrl.trim() || !payload.schema.trim() || !payload.username.trim()) {
-                sendJson(res, 400, { error: 'Server-URL, Schema und Benutzername sind erforderlich.' })
+              const credentials = readBasicCredentials(req)
+              if (!credentials || !credentials.username.trim()) {
+                sendJson(res, 400, { error: 'Authorization-Header mit BasicAuth ist erforderlich.' })
                 return
               }
 
-              const basic = Buffer.from(`${payload.username}:${payload.password}`, 'utf8').toString('base64')
+              const payload = parsed
+              if (!payload.baseUrl.trim() || !payload.schema.trim()) {
+                sendJson(res, 400, { error: 'Server-URL und Schema sind erforderlich.' })
+                return
+              }
+
+              const basic = Buffer.from(`${credentials.username}:${credentials.password}`, 'utf8').toString('base64')
               const authHeader = `Basic ${basic}`
               const candidateUrls = buildCandidateUrls(payload.baseUrl, payload.schema)
 
@@ -281,13 +302,19 @@ export default defineConfig(({ mode }) => {
                 return
               }
 
-              const payload = parsed
-              if (!payload.baseUrl.trim() || !payload.schema.trim() || !payload.username.trim()) {
-                sendJson(res, 400, { error: 'Server-URL, Schema und Benutzername sind erforderlich.' })
+              const credentials = readBasicCredentials(req)
+              if (!credentials || !credentials.username.trim()) {
+                sendJson(res, 400, { error: 'Authorization-Header mit BasicAuth ist erforderlich.' })
                 return
               }
 
-              const basic = Buffer.from(`${payload.username}:${payload.password}`, 'utf8').toString('base64')
+              const payload = parsed
+              if (!payload.baseUrl.trim() || !payload.schema.trim()) {
+                sendJson(res, 400, { error: 'Server-URL und Schema sind erforderlich.' })
+                return
+              }
+
+              const basic = Buffer.from(`${credentials.username}:${credentials.password}`, 'utf8').toString('base64')
               const authHeader = `Basic ${basic}`
               const targetUrl = `${normalizeBaseUrl(payload.baseUrl)}/db/${encodeURIComponent(payload.schema)}/enm/v2/import/gzip`
               const bodyBuffer = Buffer.from(payload.gzipBase64, 'base64')

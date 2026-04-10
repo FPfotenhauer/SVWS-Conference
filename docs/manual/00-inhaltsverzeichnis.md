@@ -12,25 +12,7 @@
 4. [Oberfläche im Überblick](04-oberflaeche.md)
 5. [Daten laden](05-daten-laden.md)
 6. [Konferenzübersicht nutzen](06-konferenzuebersicht.md)
-7. Datenschutz und Datensicherheit
-8. Fehlerbehebung
-9. FAQ
-10. Anhang
-
-## Kapitelübersicht (noch in Planung)
-
-### 7. Datenschutz und Datensicherheit
-
-Grundsätze der lokalen Verarbeitung und organisatorische Hinweise.
-
-### 8. Fehlerbehebung
-
-Typische Probleme und empfohlene Lösungen.
-
-### 9. FAQ
-
-Kurze Antworten auf häufige Anwenderfragen.
-
-### 10. Anhang
-
-Begriffe, Abkürzungen und weiterführende Informationen.
+7. [Datenschutz und Datensicherheit](07-datenschutz.md)
+8. [Fehlerbehebung](08-fehlerbehebung.md)
+9. [FAQ](09-faq.md)
+10. [Anhang](10-anhang.md)
