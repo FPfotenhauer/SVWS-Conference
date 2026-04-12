@@ -1,6 +1,3 @@
-# Impressum
-
-
 **Herausgeber / Anbieter:**
 
 Beispiel-Grundschule Musterstadt
