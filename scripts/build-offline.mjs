@@ -1,6 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { build } from 'vite'
+import { copyImpressumFile } from './copy-impressum.mjs'
 
 const distDir = path.resolve('dist')
 
@@ -84,3 +85,4 @@ const html = `<!doctype html>
 `
 
 await writeFile(path.join(distDir, 'index.html'), html, 'utf8')
+await copyImpressumFile(distDir)

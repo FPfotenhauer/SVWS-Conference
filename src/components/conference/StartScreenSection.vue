@@ -1,5 +1,7 @@
 <script lang="ts">
 import { defineComponent, h, ref } from 'vue'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
 
 export default defineComponent({
   name: 'StartScreenSection',
@@ -24,6 +26,41 @@ export default defineComponent({
   setup(props, { emit }) {
     const fileInput = ref<HTMLInputElement | null>(null)
     const configInput = ref<HTMLInputElement | null>(null)
+    const impressumOpen = ref(false)
+    const impressumLoading = ref(false)
+    const impressumContent = ref('')
+    const impressumHtml = ref('')
+    const impressumError = ref('')
+
+    async function openImpressumModal() {
+      impressumOpen.value = true
+      if (impressumLoading.value || impressumContent.value) {
+        return
+      }
+
+      impressumLoading.value = true
+      impressumError.value = ''
+
+      try {
+        const targetUrl = new URL('impressum.md', window.location.href).toString()
+        const response = await fetch(targetUrl, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(`Datei konnte nicht geladen werden (${response.status}).`)
+        }
+        impressumContent.value = await response.text()
+        const rawHtml = marked.parse(impressumContent.value, { async: false })
+        impressumHtml.value = DOMPurify.sanitize(rawHtml)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unbekannter Fehler'
+        impressumError.value = `Impressum konnte nicht geladen werden: ${message}`
+      } finally {
+        impressumLoading.value = false
+      }
+    }
+
+    function closeImpressumModal() {
+      impressumOpen.value = false
+    }
 
     function cloudIcon() {
       return h(
@@ -179,6 +216,51 @@ export default defineComponent({
           }, 'Datei auswählen'),
         ]),
       ]),
+      h('section', { class: 'impressum-section' }, [
+        h('button', {
+          class: 'impressum-link',
+          type: 'button',
+          onClick: () => {
+            void openImpressumModal()
+          },
+        }, 'Impressum'),
+      ]),
+      impressumOpen.value
+        ? h('div', {
+          class: 'impressum-modal-bg open',
+          role: 'presentation',
+          onClick: (event: MouseEvent) => {
+            if (event.target === event.currentTarget) {
+              closeImpressumModal()
+            }
+          },
+        }, [
+          h('section', {
+            class: 'impressum-modal',
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': 'impressum-modal-title',
+          }, [
+            h('div', { class: 'impressum-modal-head' }, [
+              h('h2', { id: 'impressum-modal-title', class: 'impressum-modal-title' }, 'Impressum'),
+              h('button', {
+                class: 'impressum-modal-close',
+                type: 'button',
+                onClick: () => closeImpressumModal(),
+                'aria-label': 'Impressum schließen',
+              }, 'Schließen'),
+            ]),
+            impressumLoading.value
+              ? h('p', { class: 'impressum-modal-status' }, 'Impressum wird geladen...')
+              : impressumError.value
+                ? h('p', { class: 'impressum-modal-error' }, impressumError.value)
+                : h('div', {
+                  class: 'impressum-modal-content',
+                  innerHTML: impressumHtml.value,
+                }),
+          ]),
+        ])
+        : null,
     ]
   },
 })

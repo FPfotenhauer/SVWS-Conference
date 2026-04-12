@@ -6,23 +6,25 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build-offline.mjs",
-    "build:vite": "vite build",
+    "build:vite": "vite build && node scripts/copy-impressum.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "dependencies": {
+    "dompurify": "^3.3.3",
     "fflate": "^0.8.2",
     "jspdf": "^4.2.1",
+    "marked": "^18.0.0",
     "pinia": "^2.1.7",
     "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.4",
     "@types/node": "^22.15.3",
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
+    "@vitejs/plugin-vue": "^5.2.4",
     "esbuild": "^0.25.3",
     "eslint": "^9.25.1",
     "typescript": "^5.8.3",
