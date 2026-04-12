@@ -4,6 +4,7 @@ import https from 'node:https'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
+import vue from '@vitejs/plugin-vue'
 
 type ProxyPayload = {
   baseUrl: string
@@ -160,6 +161,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
     },
     plugins: [
+      vue(),
       {
         name: 'svws-enm-proxy',
         configureServer(server) {
