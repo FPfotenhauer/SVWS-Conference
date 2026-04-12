@@ -71,7 +71,7 @@ const html = `<!doctype html>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: http: https: ws: wss:; object-src 'none'; base-uri 'self'; form-action 'self'"
+			content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: http: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 		/>
 		<meta name="referrer" content="no-referrer" />
 		<title>SVWS Konferenzübersicht</title>${stylesheetTag}
