@@ -12,6 +12,8 @@ import { createLupeCardsVNodes } from '../utils/lupeCardPresentation'
 import { useConferenceStore } from '../stores/conferenceStore'
 import type { Notenkuerzel } from '../types/enm'
 
+// Runtime defaults that may be injected by the build system or by the hosting environment.
+// These values are only used as initial fallbacks for the server connection form.
 type SvwsDefaults = {
   host: string
   port: string
@@ -20,6 +22,8 @@ type SvwsDefaults = {
   password: string
 }
 
+// Runtime config that is persisted to localStorage.
+// Password is intentionally excluded from persisted storage.
 type RuntimeSvwsConfig = {
   baseUrl: string
   schema: string
@@ -27,10 +31,12 @@ type RuntimeSvwsConfig = {
   trustSelfSigned: boolean
 }
 
+// The keys of the Lupe detail table columns. Used for resize state and rendering.
 type LupeColumnKey = 'fach' | 'kursart' | 'lehrer' | 'fs' | 'fsu' | 'note'
 
 const RUNTIME_CONFIG_STORAGE_KEY = 'svws-conference.runtime-config'
 
+// Build-time injected defaults from the app shell or Vite environment.
 declare const __SVWS_DEFAULTS__: Partial<SvwsDefaults> | undefined
 
 function readSvwsDefaults(): Partial<SvwsDefaults> {
@@ -40,6 +46,8 @@ function readSvwsDefaults(): Partial<SvwsDefaults> {
   return __SVWS_DEFAULTS__
 }
 
+// Build a default server URL from host and port values.
+// If the host already contains a protocol, it is returned unchanged.
 function buildDefaultBaseUrl(host: string, port: string): string {
   const trimmedHost = host.trim()
   const trimmedPort = port.trim()
@@ -54,6 +62,8 @@ function buildDefaultBaseUrl(host: string, port: string): string {
     : `https://${trimmedHost}`
 }
 
+// Accepts a text flag and returns a boolean meaning where possible.
+// Supports common variants such as 1/true/yes/on/ja.
 function parseBooleanFlag(value: string | undefined): boolean | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
@@ -61,6 +71,8 @@ function parseBooleanFlag(value: string | undefined): boolean | undefined {
   return ['1', 'true', 'yes', 'on', 'ja'].includes(normalized)
 }
 
+// Parse a simple env-style file with key=value lines.
+// Ignores comments and optional export prefixes.
 function parseEnvLikeText(content: string): Record<string, string> {
   const result: Record<string, string> = {}
   for (const rawLine of content.split(/\r?\n/)) {
@@ -84,6 +96,7 @@ function parseEnvLikeText(content: string): Record<string, string> {
   return result
 }
 
+// Load persisted connection config from localStorage, omitting any stored password.
 function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
   if (typeof window === 'undefined') return {}
   try {
@@ -103,6 +116,7 @@ function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
   }
 }
 
+// Resolve the CSS class for a grade badge.
 function gradeClass(note: Notenkuerzel | null): string {
   if (!note) return 'badge ns'
   const numeric = Number.parseInt(note, 10)
@@ -110,6 +124,7 @@ function gradeClass(note: Notenkuerzel | null): string {
   return `badge n${Math.max(1, Math.min(6, numeric))}`
 }
 
+// Convert a grade token into a numeric value if available.
 function numericGrade(note: Notenkuerzel | null): number | null {
   if (!note) return null
   const value = Number.parseInt(note, 10)
@@ -117,6 +132,7 @@ function numericGrade(note: Notenkuerzel | null): number | null {
   return value
 }
 
+// Normalize heterogenous lerngruppen ID fields from ENM payloads.
 function readLerngruppeId(entry: unknown): number | null {
   if (!entry || typeof entry !== 'object') return null
   const raw = entry as Record<string, unknown>
@@ -129,6 +145,7 @@ function readLerngruppeId(entry: unknown): number | null {
   return null
 }
 
+// Map a grade to visual tone classes and localized text for the Lupe detail cards.
 function lupeTone(note: Notenkuerzel | null): { frame: string, note: string, label: string, text: string } {
   if (!note) {
     return { frame: '', note: 'nc-sonder', label: 'lc-none', text: 'nicht benotet' }
@@ -143,6 +160,7 @@ function lupeTone(note: Notenkuerzel | null): { frame: string, note: string, lab
   return { frame: 'nf-bad', note: 'nc-bad', label: 'lc-bad', text: value === 5 ? 'mangelhaft' : 'ungenuegend' }
 }
 
+// Format seconds into MM:SS for the timer display.
 function formatTimer(seconds: number): string {
   const safe = Math.max(0, seconds)
   const mins = Math.floor(safe / 60).toString().padStart(2, '0')
@@ -152,17 +170,26 @@ function formatTimer(seconds: number): string {
 
 const App = defineComponent({
   setup() {
+    // Central store for ENM data, class selection and change tracking.
     const store = useConferenceStore()
+
+    // Static defaults may come from injected global values or from build-time values.
     const defaults = readSvwsDefaults()
     const storedConfig = readStoredRuntimeConfig()
+
+    // Connection form state; persisted runtime config is preferred over defaults.
     const serverUrl = ref(storedConfig.baseUrl ?? buildDefaultBaseUrl(defaults.host ?? '', defaults.port ?? ''))
     const serverSchema = ref(storedConfig.schema ?? defaults.schema ?? '')
     const username = ref(storedConfig.username ?? defaults.user ?? '')
     const password = ref('')
     const trustSelfSigned = ref(storedConfig.trustSelfSigned ?? false)
+
+    // UI status and selection state.
     const status = ref('Noch keine Daten geladen.')
     const selectedSchuelerId = ref<number | null>(null)
     const activeMode = ref<'klasse' | 'lerngruppe'>('klasse')
+
+    // Lupe detail modal state.
     const lupeOpen = ref(false)
     const lupeViewMode = ref<'kachel' | 'tabelle'>('kachel')
     const lupeFehlstundenMode = ref<'gesamt' | 'fach'>('gesamt')
@@ -184,13 +211,19 @@ const App = defineComponent({
       fsu: 48,
       note: 78,
     }
+
+    // Editing and layout state for the table.
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
+
+    // Dialog visibility state.
     const timerModalOpen = ref(false)
     const changesModalOpen = ref(false)
     const logoutConfirmOpen = ref(false)
     const exportConfirmOpen = ref(false)
     const exportRunning = ref(false)
+
+    // Timer state and controls.
     const timerTotalSeconds = ref(300)
     const timerRemainingSeconds = ref(300)
     const timerRunning = ref(false)
@@ -201,8 +234,12 @@ const App = defineComponent({
     const timerPresets = [180, 300, 600, 900]
     let timerIntervalId: number | null = null
     let timerFlashTimeoutId: number | null = null
+
+    // Cleanup function for the Lupe column resize mouse listeners.
     let lupeResizeCleanup: (() => void) | null = null
 
+    // Persist the current runtime server configuration to localStorage.
+    // Passwords are intentionally omitted to avoid storing secrets.
     function persistRuntimeConfig() {
       if (typeof window === 'undefined') return
       const payload: RuntimeSvwsConfig = {
@@ -218,6 +255,7 @@ const App = defineComponent({
       }
     }
 
+    // Stop the interval driving the countdown timer.
     function clearTimerInterval() {
       if (timerIntervalId !== null) {
         window.clearInterval(timerIntervalId)
@@ -225,6 +263,7 @@ const App = defineComponent({
       }
     }
 
+    // Clear the flash feedback timeout used when the timer finishes.
     function clearTimerFeedbackTimeout() {
       if (timerFlashTimeoutId !== null) {
         window.clearTimeout(timerFlashTimeoutId)
@@ -232,6 +271,8 @@ const App = defineComponent({
       }
     }
 
+    // Play a short completion tone when the timer expires.
+    // Uses the Web Audio API if available and not muted.
     function playTimerDoneSound() {
       if (timerSoundMuted.value) return
       if (typeof window === 'undefined') return
@@ -267,6 +308,7 @@ const App = defineComponent({
       }
     }
 
+    // Stop the timer and show a brief flash when time has expired.
     function finishTimer() {
       timerRunning.value = false
       clearTimerInterval()
@@ -278,6 +320,7 @@ const App = defineComponent({
       playTimerDoneSound()
     }
 
+    // Decrement the countdown each second while the timer is active.
     function tickTimer() {
       if (!timerRunning.value) return
       timerRemainingSeconds.value = Math.max(0, timerRemainingSeconds.value - 1)
@@ -286,6 +329,7 @@ const App = defineComponent({
       }
     }
 
+    // Choose a new timer preset and reset the countdown.
     function setTimerPreset(seconds: number) {
       timerTotalSeconds.value = seconds
       timerRemainingSeconds.value = seconds
@@ -295,6 +339,7 @@ const App = defineComponent({
       clearTimerFeedbackTimeout()
     }
 
+    // Start the timer using the currently selected preset length.
     function startTimerFromCurrentPreset() {
       timerRemainingSeconds.value = timerTotalSeconds.value
       timerFinishedFlash.value = false
@@ -304,6 +349,7 @@ const App = defineComponent({
       timerIntervalId = window.setInterval(tickTimer, 1000)
     }
 
+    // Toggle between running and paused timer state.
     function toggleTimer() {
       if (timerRunning.value) {
         timerRunning.value = false
@@ -322,6 +368,7 @@ const App = defineComponent({
       timerIntervalId = window.setInterval(tickTimer, 1000)
     }
 
+    // Reset timer state to the chosen preset without starting it.
     function resetTimer() {
       timerRunning.value = false
       clearTimerInterval()
@@ -330,6 +377,7 @@ const App = defineComponent({
       timerRemainingSeconds.value = timerTotalSeconds.value
     }
 
+    // If the user has enabled timer repeat, restarting the timer when the selected student changes.
     function applyTimerRepeatOnStudentChange(newSchuelerId: number) {
       if (!timerRepeatEnabled.value) return
       if (activeMode.value !== 'klasse') return
@@ -338,6 +386,7 @@ const App = defineComponent({
       startTimerFromCurrentPreset()
     }
 
+    // Handle the drag-to-resize interaction in the Lupe table.
     function startLupeColumnResize(column: LupeColumnKey, event: MouseEvent) {
       event.preventDefault()
       event.stopPropagation()
@@ -368,23 +417,25 @@ const App = defineComponent({
       lupeResizeCleanup = onMouseUp
     }
 
-    function getSavedIndicatorText(): string | null {
-      if (!lastSavedAt.value || store.hasAnyChanges) return null
-      const time = lastSavedAt.value.toLocaleTimeString('de-DE', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-      return `Gespeichert um ${time}`
-    }
-
-    onUnmounted(() => {
-      clearTimerInterval()
-      clearTimerFeedbackTimeout()
-      if (lupeResizeCleanup) {
-        lupeResizeCleanup()
-      }
+  // Return a small saved-state label if the current dataset has been exported successfully.
+  function getSavedIndicatorText(): string | null {
+    if (!lastSavedAt.value || store.hasAnyChanges) return null
+    const time = lastSavedAt.value.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
     })
+    return `Gespeichert um ${time}`
+  }
 
+  onUnmounted(() => {
+    clearTimerInterval()
+    clearTimerFeedbackTimeout()
+    if (lupeResizeCleanup) {
+      lupeResizeCleanup()
+    }
+  })
+
+  // Establish a connection to the SVWS server and load ENM data.
     async function connectToServer() {
       if (!serverUrl.value.trim() || !serverSchema.value.trim() || !username.value.trim()) {
         status.value = 'Bitte Server-URL, Schema und Benutzername angeben.'
@@ -412,6 +463,7 @@ const App = defineComponent({
       }
     }
 
+    // Load a .env-like config file and populate the server settings.
     async function onConfigFileSelected(event: Event) {
       const target = event.target as HTMLInputElement
       const file = target.files?.[0]
@@ -452,6 +504,7 @@ const App = defineComponent({
       }
     }
 
+    // Load ENM data from a selected file instead of from the server.
     async function onFileSelected(event: Event) {
       const target = event.target as HTMLInputElement
       const file = target.files?.[0]
@@ -469,11 +522,13 @@ const App = defineComponent({
       target.value = ''
     }
 
+    // Select a student and optionally restart the timer if repeat mode is active.
     function selectSchueler(schuelerId: number) {
       applyTimerRepeatOnStudentChange(schuelerId)
       selectedSchuelerId.value = schuelerId
     }
 
+    // Navigate through students in the current class.
     function navigateSchueler(direction: -1 | 1) {
       const klasse = store.currentKlasse
       if (!klasse || !selectedSchuelerId.value) return
@@ -483,16 +538,19 @@ const App = defineComponent({
       selectSchueler(klasse.schueler[nextIndex].schueler.id)
     }
 
+    // Mark a specific cell as currently edited.
     function startEditingCell(schuelerId: number, lerngruppeId: number) {
       editingCell.value = `${schuelerId}:${lerngruppeId}`
     }
 
+    // Save a changed grade value into the store.
     function saveNote(schuelerId: number, lerngruppeId: number, value: string) {
       const note = value ? value as Notenkuerzel : null
       store.updateNote(schuelerId, lerngruppeId, note)
       editingCell.value = null
     }
 
+    // Reset session-specific UI state when logging out.
     function logout() {
       password.value = ''
       store.reset()
@@ -507,6 +565,7 @@ const App = defineComponent({
       status.value = 'Abgemeldet. Noch keine Daten geladen.'
     }
 
+    // Ask for confirmation before logout if there are unsaved changes.
     function requestLogout() {
       if (store.hasAnyChanges) {
         logoutConfirmOpen.value = true
@@ -515,6 +574,7 @@ const App = defineComponent({
       logout()
     }
 
+    // Generate a PDF of the current change log for printing or archiving.
     function printChangeLog(logLines: string[]) {
       const doc = new jsPDF({ unit: 'mm', format: 'a4' })
       const pageHeight = doc.internal.pageSize.getHeight()
@@ -548,6 +608,7 @@ const App = defineComponent({
       doc.save(`aenderungslog-${stamp}.pdf`)
     }
 
+    // Open the export confirmation dialog if there are changes to save.
     function requestExport() {
       if (!store.hasAnyChanges) {
         status.value = 'Es sind keine Änderungen zum Export vorhanden.'
@@ -557,6 +618,7 @@ const App = defineComponent({
       exportConfirmOpen.value = true
     }
 
+    // Export the current changes either back to the server or as a local gzipped file.
     async function exportChanges() {
       exportConfirmOpen.value = false
 
@@ -632,6 +694,7 @@ const App = defineComponent({
         selectedSchuelerId.value = klasse.schueler[0].schueler.id
       }
 
+      // Derive helper data for the current conference view from the store and component state.
       const {
         selectedKlasse,
         notenOptions,
@@ -688,6 +751,7 @@ const App = defineComponent({
 
       const savedIndicatorText = getSavedIndicatorText()
 
+      // The root render function returns either the start screen or the conference UI.
       return h('main', {
         class: inConference
           ? `app-shell conference-shell ${tableScale.value === 'gross' ? 'conference-shell-large' : ''}`
