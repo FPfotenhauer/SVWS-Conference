@@ -224,8 +224,8 @@ const App = defineComponent({
     const exportRunning = ref(false)
 
     // Timer state and controls.
-    const timerTotalSeconds = ref(300)
-    const timerRemainingSeconds = ref(300)
+    const timerTotalSeconds = ref(2700)
+    const timerRemainingSeconds = ref(2700)
     const timerRunning = ref(false)
     const timerFinishedFlash = ref(false)
     const timerSoundMuted = ref(false)

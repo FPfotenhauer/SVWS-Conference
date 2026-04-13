@@ -944,6 +944,31 @@ td.changed {
   margin-bottom: 16px;
 }
 
+.timer-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.timer-custom-input {
+  width: 72px;
+  border: 1px solid #d3d1c7;
+  background: #fff;
+  color: #3d3d3a;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timer-custom-unit {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5e5c53;
+}
+
 .timer-options {
   display: flex;
   gap: 8px;

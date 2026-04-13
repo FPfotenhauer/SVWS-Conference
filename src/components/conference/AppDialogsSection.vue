@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref, watch } from 'vue'
 import type { PropType } from 'vue'
 
 export default defineComponent({
@@ -39,6 +39,23 @@ export default defineComponent({
     'logout',
   ],
   setup(props, { emit }) {
+    const customMinutes = ref(Math.max(1, Math.floor(props.timerTotalSeconds / 60)))
+
+    watch(
+      () => props.timerTotalSeconds,
+      (seconds) => {
+        customMinutes.value = Math.max(1, Math.floor(seconds / 60))
+      }
+    )
+
+    function applyCustomMinutes() {
+      const minutes = Number.isFinite(customMinutes.value)
+        ? Math.max(1, Math.min(999, Math.floor(customMinutes.value)))
+        : 1
+      customMinutes.value = minutes
+      emit('setTimerPreset', minutes * 60)
+    }
+
     return () => [
       props.timerModalOpen
         ? h('div', {
@@ -57,6 +74,28 @@ export default defineComponent({
                 onClick: () => emit('setTimerPreset', seconds),
               }, `${Math.floor(seconds / 60)} min`)
             )),
+            h('div', { class: 'timer-custom' }, [
+              h('input', {
+                class: 'timer-custom-input',
+                type: 'number',
+                min: 1,
+                max: 999,
+                step: 1,
+                value: customMinutes.value,
+                onInput: (event: Event) => {
+                  const value = Number.parseInt((event.target as HTMLInputElement).value, 10)
+                  customMinutes.value = Number.isFinite(value) ? value : 1
+                },
+                onKeydown: (event: KeyboardEvent) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    applyCustomMinutes()
+                  }
+                },
+              }),
+              h('span', { class: 'timer-custom-unit' }, 'min'),
+              h('button', { class: 'timer-preset', onClick: applyCustomMinutes }, 'Setzen'),
+            ]),
             h('div', { class: 'timer-options' }, [
               h('button', { class: `timer-option ${props.timerSoundMuted ? 'active' : ''}`.trim(), onClick: () => emit('toggleTimerSound') }, props.timerSoundMuted ? 'Ton: aus' : 'Ton: an'),
               h('button', { class: `timer-option ${props.timerRepeatEnabled ? 'active' : ''}`.trim(), onClick: () => emit('toggleTimerRepeat') }, props.timerRepeatEnabled ? 'Repeat: an' : 'Repeat: aus'),
