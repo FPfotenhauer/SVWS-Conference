@@ -12,6 +12,7 @@ pnpm-debug.log*
 
 # Environment files
 .env
+impressum.md
 
 # OS / Editor
 .DS_Store
