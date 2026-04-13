@@ -42,12 +42,17 @@ export default defineComponent({
       impressumError.value = ''
 
       try {
-        const targetUrl = new URL('impressum.md', window.location.href).toString()
-        const response = await fetch(targetUrl, { cache: 'no-store' })
-        if (!response.ok) {
-          throw new Error(`Datei konnte nicht geladen werden (${response.status}).`)
+        const inlined = (window as Window & { __IMPRESSUM_MARKDOWN__?: string }).__IMPRESSUM_MARKDOWN__
+        if (inlined != null) {
+          impressumContent.value = inlined
+        } else {
+          const targetUrl = new URL('impressum.md', window.location.href).toString()
+          const response = await fetch(targetUrl, { cache: 'no-store' })
+          if (!response.ok) {
+            throw new Error(`Datei konnte nicht geladen werden (${response.status}).`)
+          }
+          impressumContent.value = await response.text()
         }
-        impressumContent.value = await response.text()
         const rawHtml = marked.parse(impressumContent.value, { async: false })
         impressumHtml.value = DOMPurify.sanitize(rawHtml)
       } catch (error) {

@@ -1,10 +1,22 @@
-import { copyFile } from 'node:fs/promises'
+import { copyFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const impressumPath = path.join(projectRoot, 'impressum.md')
 const impressumExamplePath = path.join(projectRoot, 'impressum.example.md')
+
+export async function readImpressumContent() {
+  try {
+    return await readFile(impressumPath, 'utf8')
+  } catch {
+    try {
+      return await readFile(impressumExamplePath, 'utf8')
+    } catch {
+      return ''
+    }
+  }
+}
 
 export async function copyImpressumFile(distDir = path.join(projectRoot, 'dist')) {
   const targetPath = path.join(distDir, 'impressum.md')

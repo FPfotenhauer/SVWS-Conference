@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { build } from 'vite'
-import { copyImpressumFile } from './copy-impressum.mjs'
+import { copyImpressumFile, readImpressumContent } from './copy-impressum.mjs'
 
 const distDir = path.resolve('dist')
 
@@ -61,6 +61,11 @@ if (!entryScript) {
 	throw new Error('Offline-Build fehlgeschlagen: Kein Einstiegsskript wurde erzeugt.')
 }
 
+const impressumMarkdown = await readImpressumContent()
+const impressumScript = impressumMarkdown
+	? `\n\t\t<script>window.__IMPRESSUM_MARKDOWN__=${JSON.stringify(impressumMarkdown)}<\/script>`
+	: ''
+
 const stylesheetTag = stylesheet
 	? `\n    <link rel="stylesheet" href="./${stylesheet}" />`
 	: ''
@@ -75,7 +80,7 @@ const html = `<!doctype html>
 			content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: http: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 		/>
 		<meta name="referrer" content="no-referrer" />
-		<title>SVWS Konferenzübersicht</title>${stylesheetTag}
+		<title>SVWS Konferenzübersicht</title>${stylesheetTag}${impressumScript}
 	</head>
 	<body>
 		<div id="app"></div>
