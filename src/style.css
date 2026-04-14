@@ -483,6 +483,17 @@ h1 {
   color: #7a460f;
 }
 
+.icon-btn-danger {
+  background: #fce8e8;
+  border-color: #e2b8b8;
+  color: #8c2d2d;
+}
+
+.icon-btn-danger:hover {
+  background: #f9d5d5;
+  border-color: #d99c9c;
+}
+
 .icon-btn-logout {
   background: #fdf2f2;
   border-color: #e9caca;
@@ -878,12 +889,18 @@ td.changed {
   flex: 1;
   display: flex;
   align-items: center;
-  font-size: 14px;
+  justify-content: center;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 600;
   color: #5f5e5a;
+  padding: 1rem 0;
+  gap: 8px;
 }
 
 .changes-modal-actions {
   display: flex;
+  align-self: stretch;
   justify-content: flex-end;
   gap: 8px;
 }
