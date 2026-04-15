@@ -24,6 +24,8 @@ export default defineComponent({
     'fileSelected',
   ],
   setup(props, { emit }) {
+    type ImpressumWindow = Window & { __IMPRESSUM_MARKDOWN__?: string }
+
     const fileInput = ref<HTMLInputElement | null>(null)
     const configInput = ref<HTMLInputElement | null>(null)
     const impressumOpen = ref(false)
@@ -31,6 +33,36 @@ export default defineComponent({
     const impressumContent = ref('')
     const impressumHtml = ref('')
     const impressumError = ref('')
+
+    async function loadImpressumScript() {
+      const existing = (window as ImpressumWindow).__IMPRESSUM_MARKDOWN__
+      if (existing != null) {
+        return existing
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = new URL('impressum.js', window.location.href).toString()
+        script.async = true
+        script.onload = () => resolve()
+        script.onerror = () => {
+          reject(
+            new Error(
+              'Die Datei "impressum.js" wurde nicht gefunden. ' +
+              'Bitte benennen Sie "impressum.example.js" in "impressum.js" um und tragen Sie dort Ihre Schuldaten ein.'
+            )
+          )
+        }
+        document.head.appendChild(script)
+      })
+
+      const loaded = (window as ImpressumWindow).__IMPRESSUM_MARKDOWN__
+      if (loaded == null) {
+        throw new Error('Die Datei "impressum.js" enthält keinen Impressumstext.')
+      }
+
+      return loaded
+    }
 
     async function openImpressumModal() {
       impressumOpen.value = true
@@ -42,12 +74,16 @@ export default defineComponent({
       impressumError.value = ''
 
       try {
-        const targetUrl = new URL('impressum.md', window.location.href).toString()
-        const response = await fetch(targetUrl, { cache: 'no-store' })
-        if (!response.ok) {
-          throw new Error(`Datei konnte nicht geladen werden (${response.status}).`)
+        if (import.meta.env.DEV) {
+          const targetUrl = new URL('impressum.md', window.location.href).toString()
+          const response = await fetch(targetUrl, { cache: 'no-store' })
+          if (!response.ok) {
+            throw new Error(`Datei konnte nicht geladen werden (${response.status}).`)
+          }
+          impressumContent.value = await response.text()
+        } else {
+          impressumContent.value = await loadImpressumScript()
         }
-        impressumContent.value = await response.text()
         const rawHtml = marked.parse(impressumContent.value, { async: false })
         impressumHtml.value = DOMPurify.sanitize(rawHtml)
       } catch (error) {

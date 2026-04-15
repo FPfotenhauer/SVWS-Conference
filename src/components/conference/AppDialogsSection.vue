@@ -128,7 +128,8 @@ export default defineComponent({
             h('div', { class: 'changes-modal-actions' }, [
               h('button', { class: 'icon-btn', onClick: () => emit('printChangeLog', props.printableLogLines), disabled: props.allChanges.length === 0 }, 'Log drucken'),
               h('button', { class: 'icon-btn', onClick: () => emit('requestExport'), disabled: props.exportRunning }, props.exportRunning ? 'Exportiere...' : 'Export'),
-              h('button', { class: 'icon-btn', onClick: () => props.store.clearAllChanges(), disabled: props.allChanges.length === 0 }, 'Änderungen verwerfen'),
+              h('button', { class: 'icon-btn icon-btn-danger', onClick: () => props.store.clearAllChanges(), disabled: props.allChanges.length === 0 }, 'Änderungen verwerfen'),
+              h('button', { class: 'icon-btn', onClick: () => emit('closeChanges') }, 'Schließen'),
             ]),
           ]),
         ])

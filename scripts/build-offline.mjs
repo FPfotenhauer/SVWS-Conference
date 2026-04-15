@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { build } from 'vite'
-import { copyImpressumFile } from './copy-impressum.mjs'
+import { writeImpressumJs } from './copy-impressum.mjs'
 
 const distDir = path.resolve('dist')
 
@@ -72,17 +72,18 @@ const html = `<!doctype html>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: http: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+			content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: http: https:; object-src 'none'; base-uri 'self'; form-action 'self'"
 		/>
 		<meta name="referrer" content="no-referrer" />
 		<title>SVWS Konferenzübersicht</title>${stylesheetTag}
 	</head>
 	<body>
 		<div id="app"></div>
+		<script src="./impressum.js"></script>
 		<script src="./${entryScript}"></script>
 	</body>
 </html>
 `
 
 await writeFile(path.join(distDir, 'index.html'), html, 'utf8')
-await copyImpressumFile(distDir)
+await writeImpressumJs(distDir)
