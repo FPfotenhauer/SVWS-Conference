@@ -144,6 +144,7 @@ export function buildConferenceDerivedData(params: {
         : []
       const fachKuerzel = fach.kuerzelAnzeige || fach.kuerzel
 
+      const leistung = selectedSchueler.schueler.leistungsdaten.find((ld: any) => ld.lerngruppenID === lgId)
       return [{
         fachId: fach.id,
         fachKuerzel,
@@ -156,6 +157,7 @@ export function buildConferenceDerivedData(params: {
         fehlstundenFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenFach'),
         fehlstundenUnentschuldigtFach: store.getFachbezogeneFehlstundenValue(selectedSchueler.schueler.id, lgId, 'fehlstundenUnentschuldigtFach'),
         fachbezogeneBemerkung: store.getFachbezogeneBemerkungValue(selectedSchueler.schueler.id, lgId),
+        teilleistungen: leistung?.teilleistungen ?? [],
       }]
     })
     : []

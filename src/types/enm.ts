@@ -135,9 +135,13 @@ export interface EnmLernabschnitt {
 export interface EnmTeilleistung {
   id: number
   artID: number
+  tsArtID: string
   datum: string | null
+  tsDatum: string
   bemerkung: string | null
+  tsBemerkung: string
   note: Notenkuerzel | null
+  tsNote: string
 }
 
 export interface EnmLeistungsdaten {

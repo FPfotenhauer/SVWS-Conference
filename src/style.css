@@ -1708,6 +1708,21 @@ td.changed {
 .lupe-fach-note-select.nc-bad { color: #5c0f0f; }
 .lupe-fach-note-select.nc-sonder { color: #5f5e5a; }
 
+.lupe-col-teilleistung {
+  text-align: center;
+  padding: 8px 4px;
+}
+
+.lupe-tl-select {
+  min-width: 60px;
+}
+
+.lupe-tl-empty {
+  font-size: 12px;
+  color: #b8b6ac;
+  padding: 4px;
+}
+
 .placeholder-panel {
   padding: 2rem;
   color: #5f5e5a;

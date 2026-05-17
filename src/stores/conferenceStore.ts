@@ -67,6 +67,15 @@ type FachbezogeneFehlstundenChange = {
   newValue: number
 }
 
+type TeilleistungNoteChange = {
+  schuelerId: number
+  lerngruppeId: number
+  teilleistungId: number
+  artID: number
+  originalValue: Notenkuerzel | null
+  newValue: Notenkuerzel | null
+}
+
 function encodeBasicAuth(username: string, password: string): string {
   const bytes = new TextEncoder().encode(`${username}:${password}`)
   let binary = ''
@@ -222,6 +231,8 @@ export const useConferenceStore = defineStore('conference', () => {
   const fachbezogeneBemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fehlstundenChanges = ref<Map<string, number>>(new Map())
   const fachbezogeneFehlstundenChanges = ref<Map<string, number>>(new Map())
+  const teilleistungNoteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
+  const noteQuartalChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const dataSource = ref<DataSource>(null)
   const lastServerConnection = ref<ServerConnectionParams | null>(null)
 
@@ -387,8 +398,12 @@ export const useConferenceStore = defineStore('conference', () => {
   const fehlstundenChangeCount = computed(() => fehlstundenChanges.value.size)
   const hasFachbezogeneFehlstundenChanges = computed(() => fachbezogeneFehlstundenChanges.value.size > 0)
   const fachbezogeneFehlstundenChangeCount = computed(() => fachbezogeneFehlstundenChanges.value.size)
-  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0 || fachbezogeneFehlstundenChanges.value.size > 0)
-  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size + fachbezogeneFehlstundenChanges.value.size)
+  const hasTeilleistungNoteChanges = computed(() => teilleistungNoteChanges.value.size > 0)
+  const teilleistungNoteChangeCount = computed(() => teilleistungNoteChanges.value.size)
+  const hasNoteQuartalChanges = computed(() => noteQuartalChanges.value.size > 0)
+  const noteQuartalChangeCount = computed(() => noteQuartalChanges.value.size)
+  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0 || fachbezogeneFehlstundenChanges.value.size > 0 || teilleistungNoteChanges.value.size > 0 || noteQuartalChanges.value.size > 0)
+  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size + fachbezogeneFehlstundenChanges.value.size + teilleistungNoteChanges.value.size + noteQuartalChanges.value.size)
 
   function getChangeKey(schuelerId: number, lerngruppeId: number): string {
     return `${schuelerId}:${lerngruppeId}`
@@ -404,6 +419,43 @@ export const useConferenceStore = defineStore('conference', () => {
     const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
     if (!schueler) return null
     return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.noteQuartal ?? null
+  }
+
+  function getTeilleistungChangeKey(schuelerId: number, lerngruppeId: number, teilleistungId: number): string {
+    return `${schuelerId}:${lerngruppeId}:${teilleistungId}`
+  }
+
+  function getOriginalTeilleistungNote(schuelerId: number, lerngruppeId: number, teilleistungId: number): Notenkuerzel | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)
+    if (!leistung) return null
+    const teilleistung = leistung.teilleistungen.find(tl => tl.id === teilleistungId)
+    return teilleistung?.note ?? null
+  }
+
+  function getTeilleistungNote(schuelerId: number, lerngruppeId: number, teilleistungId: number): Notenkuerzel | null {
+    const key = getTeilleistungChangeKey(schuelerId, lerngruppeId, teilleistungId)
+    if (teilleistungNoteChanges.value.has(key)) {
+      return teilleistungNoteChanges.value.get(key) ?? null
+    }
+    return getOriginalTeilleistungNote(schuelerId, lerngruppeId, teilleistungId)
+  }
+
+  function updateTeilleistungNote(schuelerId: number, lerngruppeId: number, teilleistungId: number, note: Notenkuerzel | null): void {
+    const key = getTeilleistungChangeKey(schuelerId, lerngruppeId, teilleistungId)
+    const original = getOriginalTeilleistungNote(schuelerId, lerngruppeId, teilleistungId)
+
+    if (original === note) {
+      teilleistungNoteChanges.value.delete(key)
+      return
+    }
+
+    teilleistungNoteChanges.value.set(key, note)
+  }
+
+  function isTeilleistungNoteChanged(schuelerId: number, lerngruppeId: number, teilleistungId: number): boolean {
+    return teilleistungNoteChanges.value.has(getTeilleistungChangeKey(schuelerId, lerngruppeId, teilleistungId))
   }
 
   function getNote(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
@@ -430,16 +482,40 @@ export const useConferenceStore = defineStore('conference', () => {
     return noteChanges.value.has(getChangeKey(schuelerId, lerngruppeId))
   }
 
+  function getNoteQuartal(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
+    const key = getChangeKey(schuelerId, lerngruppeId)
+    if (noteQuartalChanges.value.has(key)) {
+      return noteQuartalChanges.value.get(key) ?? null
+    }
+    return getOriginalNoteQuartal(schuelerId, lerngruppeId)
+  }
+
+  function updateNoteQuartal(schuelerId: number, lerngruppeId: number, note: Notenkuerzel | null): void {
+    const key = getChangeKey(schuelerId, lerngruppeId)
+    const original = getOriginalNoteQuartal(schuelerId, lerngruppeId)
+    if (original === note) {
+      noteQuartalChanges.value.delete(key)
+      return
+    }
+    noteQuartalChanges.value.set(key, note)
+  }
+
+  function isNoteQuartalChanged(schuelerId: number, lerngruppeId: number): boolean {
+    return noteQuartalChanges.value.has(getChangeKey(schuelerId, lerngruppeId))
+  }
+
   function clearNoteChanges(): void {
     noteChanges.value.clear()
   }
 
   function clearAllChanges(): void {
     noteChanges.value.clear()
+    noteQuartalChanges.value.clear()
     bemerkungChanges.value.clear()
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
     fachbezogeneFehlstundenChanges.value.clear()
+    teilleistungNoteChanges.value.clear()
   }
 
   function buildPatchedExport(): EnmExport | null {
@@ -467,6 +543,15 @@ export const useConferenceStore = defineStore('conference', () => {
       if (!leistung) continue
       leistung.note = change.newNote
       leistung.tsNote = tsNow
+    }
+
+    for (const change of listNoteQuartalChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === change.lerngruppeId)
+      if (!leistung) continue
+      leistung.noteQuartal = change.newNote
+      leistung.tsNoteQuartal = tsNow
     }
 
     for (const change of listBemerkungChanges()) {
@@ -508,6 +593,17 @@ export const useConferenceStore = defineStore('conference', () => {
       } else {
         leistung.tsFehlstundenUnentschuldigtFach = tsNow
       }
+    }
+
+    for (const change of listTeilleistungNoteChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      const leistung = schueler.leistungsdaten.find(ld => ld.lerngruppenID === change.lerngruppeId)
+      if (!leistung) continue
+      const teilleistung = leistung.teilleistungen.find(tl => tl.id === change.teilleistungId)
+      if (!teilleistung) continue
+      teilleistung.note = change.newValue
+      teilleistung.tsNote = tsNow
     }
 
     return patched
@@ -635,6 +731,22 @@ export const useConferenceStore = defineStore('conference', () => {
         schuelerId,
         lerngruppeId,
         originalNote: getOriginalNote(schuelerId, lerngruppeId),
+        newNote,
+      })
+    }
+    return changes
+  }
+
+  function listNoteQuartalChanges(): NoteChange[] {
+    const changes: NoteChange[] = []
+    for (const [key, newNote] of noteQuartalChanges.value) {
+      const [schueler, lerngruppe] = key.split(':')
+      const schuelerId = Number(schueler)
+      const lerngruppeId = Number(lerngruppe)
+      changes.push({
+        schuelerId,
+        lerngruppeId,
+        originalNote: getOriginalNoteQuartal(schuelerId, lerngruppeId),
         newNote,
       })
     }
@@ -879,6 +991,28 @@ export const useConferenceStore = defineStore('conference', () => {
     return changes
   }
 
+  function listTeilleistungNoteChanges(): TeilleistungNoteChange[] {
+    const changes: TeilleistungNoteChange[] = []
+    for (const [key, newValue] of teilleistungNoteChanges.value) {
+      const [schueler, lerngruppe, teilleistung] = key.split(':')
+      const schuelerId = Number(schueler)
+      const lerngruppeId = Number(lerngruppe)
+      const teilleistungId = Number(teilleistung)
+      const schuelerData = enmExport.value?.schueler.find(s => s.id === schuelerId)
+      const leistung = schuelerData?.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)
+      const teilleistungData = leistung?.teilleistungen.find(tl => tl.id === teilleistungId)
+      changes.push({
+        schuelerId,
+        lerngruppeId,
+        teilleistungId,
+        artID: teilleistungData?.artID ?? 0,
+        originalValue: getOriginalTeilleistungNote(schuelerId, lerngruppeId, teilleistungId),
+        newValue,
+      })
+    }
+    return changes
+  }
+
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
@@ -889,10 +1023,12 @@ export const useConferenceStore = defineStore('conference', () => {
     try {
       enmExport.value = await parseEnmGzip(file)
       noteChanges.value.clear()
+      noteQuartalChanges.value.clear()
       bemerkungChanges.value.clear()
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       fachbezogeneFehlstundenChanges.value.clear()
+      teilleistungNoteChanges.value.clear()
       dataSource.value = 'file'
       lastServerConnection.value = null
       // Erste Klasse vorauswählen
@@ -984,10 +1120,12 @@ export const useConferenceStore = defineStore('conference', () => {
       const buffer = await response.arrayBuffer()
       enmExport.value = await parseEnmGzip(buffer)
       noteChanges.value.clear()
+      noteQuartalChanges.value.clear()
       bemerkungChanges.value.clear()
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       fachbezogeneFehlstundenChanges.value.clear()
+      teilleistungNoteChanges.value.clear()
       dataSource.value = 'server'
       lastServerConnection.value = {
         baseUrl: params.baseUrl,
@@ -1027,10 +1165,12 @@ export const useConferenceStore = defineStore('conference', () => {
     selectedKlasseId.value = null
     selectedLerngruppeId.value = null
     noteChanges.value.clear()
+    noteQuartalChanges.value.clear()
     bemerkungChanges.value.clear()
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
     fachbezogeneFehlstundenChanges.value.clear()
+    teilleistungNoteChanges.value.clear()
     dataSource.value = null
     lastServerConnection.value = null
     error.value = null
@@ -1066,6 +1206,7 @@ export const useConferenceStore = defineStore('conference', () => {
     hasFachbezogeneFehlstundenChanges,
     fachbezogeneFehlstundenChangeCount,
     hasAnyChanges,
+    listTeilleistungNoteChanges,
     totalChangeCount,
     // Actions
     loadFromFile,
@@ -1074,14 +1215,20 @@ export const useConferenceStore = defineStore('conference', () => {
     selectLerngruppe,
     getNote,
     getOriginalNoteQuartal,
+    getNoteQuartal,
     updateNote,
+    updateNoteQuartal,
     isNoteChanged,
+    isNoteQuartalChanged,
     clearNoteChanges,
     clearAllChanges,
     createPatchedExportGzip,
     applyPatchedChangesLocally,
     importPatchedExportToServer,
     listNoteChanges,
+    listNoteQuartalChanges,
+    hasNoteQuartalChanges,
+    noteQuartalChangeCount,
     // Bemerkungen
     getBemerkungenValue,
     updateBemerkungenValue,
@@ -1100,6 +1247,12 @@ export const useConferenceStore = defineStore('conference', () => {
     updateFachbezogeneFehlstundenValue,
     isFachbezogeneFehlstundenChanged,
     listFachbezogeneFehlstundenChanges,
+    // Teilleistungen
+    hasTeilleistungNoteChanges,
+    teilleistungNoteChangeCount,
+    getTeilleistungNote,
+    updateTeilleistungNote,
+    isTeilleistungNoteChanged,
     // Reset
     reset,
   }

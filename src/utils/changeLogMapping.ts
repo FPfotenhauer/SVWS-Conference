@@ -20,6 +20,19 @@ export function buildChangeLogData(store: any): {
     }
   })
 
+  const noteQuartalChanges = store.listNoteQuartalChanges().map((change: any) => {
+    const schueler = schuelerById.get(change.schuelerId)
+    const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+    const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+    return {
+      typ: 'Quartalsnote',
+      schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+      feld: fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`,
+      alt: change.originalNote ?? '–',
+      neu: change.newNote ?? '–',
+    }
+  })
+
   const bemerkungLabels = {
     ASV: 'Arbeits- und Sozialverhalten',
     AUE: 'Ausserunterrichtliches Engagement',
@@ -84,12 +97,31 @@ export function buildChangeLogData(store: any): {
     }
   })
 
+  const teilleistungsartById = new Map<number, any>((store.enmExport?.teilleistungsarten ?? [])
+    .map((item: any) => [Number(item.id), item]))
+
+  const teilleistungChanges = store.listTeilleistungNoteChanges().map((change: any) => {
+    const schueler = schuelerById.get(change.schuelerId)
+    const lerngruppe = lerngruppeById.get(change.lerngruppeId)
+    const fach = lerngruppe ? fachById.get(lerngruppe.fachID) : null
+    const art = teilleistungsartById.get(change.artID)
+    return {
+      typ: 'Teilleistung',
+      schuelerName: schueler ? `${schueler.nachname}, ${schueler.vorname}` : `ID ${change.schuelerId}`,
+      feld: `${fach?.kuerzelAnzeige || fach?.kuerzel || `Lerngruppe ${change.lerngruppeId}`} · ${art?.bezeichnung || `Art ${change.artID}`}`,
+      alt: change.originalValue ?? '–',
+      neu: change.newValue ?? '–',
+    }
+  })
+
   const allChanges = [
     ...noteChanges,
+    ...noteQuartalChanges,
     ...fehlstundenChanges,
     ...fachbezogeneFehlstundenChanges,
     ...bemerkungChanges,
     ...fachbezogeneBemerkungChanges,
+    ...teilleistungChanges,
   ]
 
   const exportTargetLabel = store.dataSource === 'server'
