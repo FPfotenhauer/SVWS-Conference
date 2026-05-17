@@ -20,6 +20,7 @@ export default defineComponent({
     getNote: { type: Function as PropType<(schuelerId: number, lgId: number) => Notenkuerzel | null>, required: true },
     isNoteChanged: { type: Function as PropType<(schuelerId: number, lgId: number) => boolean>, required: true },
     gradeClass: { type: Function as PropType<(note: Notenkuerzel | null) => string>, required: true },
+    noteCycleMode: { type: String as PropType<'halbjahr' | 'quartal'>, required: true },
   },
   emits: ['selectSchueler', 'startEditingCell', 'saveNote', 'cancelEditing'],
   setup(props, { emit }) {

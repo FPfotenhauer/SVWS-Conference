@@ -15,6 +15,8 @@ export default defineComponent({
     lupeViewMode: { type: String as PropType<'kachel' | 'tabelle'>, required: true },
     lupeFehlstundenMode: { type: String as PropType<'gesamt' | 'fach'>, required: true },
     notenAnzeigeMode: { type: String as PropType<'noten' | 'punkte'>, required: true },
+    noteCycleMode: { type: String as PropType<'halbjahr' | 'quartal'>, required: true },
+    lupeTableDetailMode: { type: String as PropType<'bemerkungen' | 'teilleistungen'>, required: true },
     lupeRemarksCollapsed: { type: Boolean, required: true },
     avg: { type: String, required: true },
     gradedCount: { type: Number, required: true },
@@ -34,10 +36,47 @@ export default defineComponent({
     'setLupeViewMode',
     'setLupeFehlstundenMode',
     'setNotenAnzeigeMode',
+    'setNoteCycleMode',
+    'setLupeTableDetailMode',
     'toggleLupeRemarksCollapsed',
     'startLupeColumnResize',
   ],
   setup(props, { emit }) {
+    // Sammelt alle eindeutigen Teilleistungsarten über alle Subjects
+    const getAllTeilleistungsarten = () => {
+      const artMap = new Map<number, { id: number; bezeichnung: string }>()
+
+      for (const subject of props.lupeSubjects) {
+        if (subject.teilleistungen) {
+          for (const tl of subject.teilleistungen) {
+            if (!artMap.has(tl.artID)) {
+              artMap.set(tl.artID, {
+                id: tl.artID,
+                bezeichnung: getTeilleistungsartBezeichnung(tl.artID),
+              })
+            }
+          }
+        }
+      }
+
+      return Array.from(artMap.values()).sort((a, b) => a.id - b.id)
+    }
+
+    // Hilfsfunktion zum Abrufen der Bezeichnung einer Teilleistungsart
+    const getTeilleistungsartBezeichnung = (artID: number): string => {
+      if (!props.store.enmExport || !Array.isArray(props.store.enmExport.teilleistungsarten)) {
+        return `Art${artID}`
+      }
+      const art = props.store.enmExport.teilleistungsarten.find((a: any) => a.id === artID)
+      return art?.bezeichnung || `Art${artID}`
+    }
+
+    // Hilfsfunktion zum Finden einer Teilleistung eines Fachs nach artID
+    const getTeilleistungByArtID = (subject: any, artID: number) => {
+      if (!subject.teilleistungen) return null
+      return subject.teilleistungen.find((tl: any) => tl.artID === artID) ?? null
+    }
+
     return () => props.open
       ? h('div', {
         class: 'lupe-modal-bg open',
@@ -85,6 +124,29 @@ export default defineComponent({
                   onClick: () => emit('setNotenAnzeigeMode', 'punkte'),
                 }, 'Punkte'),
               ]),
+              h('div', { class: 'lupe-view-toggle' }, [
+                h('button', {
+                  class: props.noteCycleMode === 'halbjahr' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                  onClick: () => emit('setNoteCycleMode', 'halbjahr'),
+                }, 'Halbjahr'),
+                h('button', {
+                  class: props.noteCycleMode === 'quartal' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                  onClick: () => emit('setNoteCycleMode', 'quartal'),
+                }, 'Quartal'),
+              ]),
+              ...(props.lupeViewMode === 'tabelle'
+                ? [h('div', { class: 'lupe-view-toggle' }, [
+                  h('button', {
+                    class: props.lupeTableDetailMode === 'bemerkungen' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                    onClick: () => emit('setLupeTableDetailMode', 'bemerkungen'),
+                  }, 'Bemerkungen'),
+                  h('button', {
+                    class: props.lupeTableDetailMode === 'teilleistungen' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                    onClick: () => emit('setLupeTableDetailMode', 'teilleistungen'),
+                  }, 'Teilleistungen'),
+                ])]
+                : []
+              ),
             ]),
             h('div', { class: 'lupe-nav' }, [
               h('button', {
@@ -174,7 +236,12 @@ export default defineComponent({
                           h('span', { class: 'lupe-th-label' }, props.notenAnzeigeMode === 'punkte' ? 'Punkte' : 'Notenkürzel'),
                           h('span', { class: 'lupe-col-resizer', onMousedown: (event: MouseEvent) => emit('startLupeColumnResize', 'note', event) }),
                         ]),
-                        h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen'),
+                        ...(props.lupeTableDetailMode === 'bemerkungen'
+                          ? [h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen')]
+                          : getAllTeilleistungsarten().map((art) =>
+                            h('th', { class: 'lupe-col-teilleistung' }, art.bezeichnung)
+                          )
+                        ),
                       ]),
                     ]),
                     h('tbody', props.lupeSubjects.map(subject => h('tr', [
@@ -219,19 +286,42 @@ export default defineComponent({
                           ...props.notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, props.getNoteDisplay(n.kuerzel))),
                         ]),
                       ]),
-                      h('td', { class: 'lupe-col-remark' }, [
-                        h('input', {
-                          type: 'text',
-                          class: `lupe-table-remark-input ${props.selectedSchueler && props.store.isFachbezogeneBemerkungChanged(props.selectedSchueler.schueler.id, subject.lgId) ? 'changed' : ''}`.trim(),
-                          value: subject.fachbezogeneBemerkung?.trim() ?? '',
-                          placeholder: 'Keine fachbezogene Bemerkung',
-                          onInput: (event: Event) => {
-                            if (!props.selectedSchueler) return
-                            const value = (event.target as HTMLInputElement).value.trim()
-                            props.store.updateFachbezogeneBemerkungValue(props.selectedSchueler.schueler.id, subject.lgId, value || null)
-                          },
-                        }),
-                      ]),
+                      ...(props.lupeTableDetailMode === 'bemerkungen'
+                        ? [
+                          h('td', { class: 'lupe-col-remark' }, [
+                            h('input', {
+                              type: 'text',
+                              class: `lupe-table-remark-input ${props.selectedSchueler && props.store.isFachbezogeneBemerkungChanged(props.selectedSchueler.schueler.id, subject.lgId) ? 'changed' : ''}`.trim(),
+                              value: subject.fachbezogeneBemerkung?.trim() ?? '',
+                              placeholder: 'Keine fachbezogene Bemerkung',
+                              onInput: (event: Event) => {
+                                if (!props.selectedSchueler) return
+                                const value = (event.target as HTMLInputElement).value.trim()
+                                props.store.updateFachbezogeneBemerkungValue(props.selectedSchueler.schueler.id, subject.lgId, value || null)
+                              },
+                            }),
+                          ]),
+                        ]
+                        : getAllTeilleistungsarten().map((art) => {
+                          const tl = getTeilleistungByArtID(subject, art.id)
+                          return h('td', { class: 'lupe-col-teilleistung' },
+                            tl && props.selectedSchueler
+                              ? h('select', {
+                                class: `lupe-table-note-select lupe-tl-select ${tl.note ?? ''}`,
+                                value: props.store.getTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id) ?? '',
+                                onChange: (event: Event) => {
+                                  if (!props.selectedSchueler) return
+                                  const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                                  props.store.updateTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id, newNote || null)
+                                },
+                              }, [
+                                h('option', { value: '' }, '–'),
+                                ...props.notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, props.getNoteDisplay(n.kuerzel))),
+                              ])
+                              : h('span', { class: 'lupe-tl-empty' }, '–')
+                          )
+                        })
+                      ),
                     ]))),
                   ]),
                 ])

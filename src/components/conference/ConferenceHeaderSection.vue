@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent, h } from 'vue'
 import type { PropType } from 'vue'
+import { useTheme } from '../../composables/useTheme'
 
 type KlasseItem = {
   id: number
@@ -15,6 +16,7 @@ export default defineComponent({
     availableKlassen: { type: Array as PropType<KlasseItem[]>, required: true },
     activeMode: { type: String as PropType<'klasse' | 'lerngruppe'>, required: true },
     notenAnzeigeMode: { type: String as PropType<'noten' | 'punkte'>, required: true },
+    noteCycleMode: { type: String as PropType<'halbjahr' | 'quartal'>, required: true },
     lupeOpen: { type: Boolean, required: true },
     timerRunning: { type: Boolean, required: true },
     timerFinishedFlash: { type: Boolean, required: true },
@@ -33,6 +35,7 @@ export default defineComponent({
     'selectKlasse',
     'setActiveMode',
     'setNotenAnzeigeMode',
+    'setNoteCycleMode',
     'toggleLupe',
     'openTimer',
     'toggleTableScale',
@@ -40,6 +43,28 @@ export default defineComponent({
     'requestLogout',
   ],
   setup(props, { emit }) {
+    const { preference, setTheme } = useTheme()
+
+    function sunIcon() {
+      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+        h('circle', { cx: '8', cy: '8', r: '3', stroke: 'currentColor', 'stroke-width': '1.5' }),
+        h('path', { d: 'M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.42 1.42M11.18 11.18l1.42 1.42M12.6 3.4l-1.42 1.42M4.82 11.18l-1.42 1.42', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
+      ])
+    }
+
+    function monitorIcon() {
+      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+        h('rect', { x: '1', y: '2', width: '14', height: '10', rx: '1.5', stroke: 'currentColor', 'stroke-width': '1.5' }),
+        h('path', { d: 'M5.5 14.5h5M8 12v2.5', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
+      ])
+    }
+
+    function moonIcon() {
+      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+        h('path', { d: 'M12.5 10A6 6 0 0 1 6 3.5a6 6 0 1 0 6.5 6.5Z', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+      ])
+    }
+
     return () => [
       h('header', { class: 'topbar' }, [
         h('span', { class: 'app-title' }, [
@@ -78,6 +103,16 @@ export default defineComponent({
             onClick: () => emit('setNotenAnzeigeMode', 'punkte'),
           }, 'Punkte'),
         ]),
+        h('div', { class: 'mode-tabs' }, [
+          h('button', {
+            class: props.noteCycleMode === 'halbjahr' ? 'mode-tab active' : 'mode-tab',
+            onClick: () => emit('setNoteCycleMode', 'halbjahr'),
+          }, 'Halbjahr'),
+          h('button', {
+            class: props.noteCycleMode === 'quartal' ? 'mode-tab active' : 'mode-tab',
+            onClick: () => emit('setNoteCycleMode', 'quartal'),
+          }, 'Quartal'),
+        ]),
         h('div', { class: 'spacer' }),
         h('button', {
           class: props.lupeOpen ? 'icon-btn active' : 'icon-btn',
@@ -95,6 +130,11 @@ export default defineComponent({
           class: 'icon-btn',
           onClick: () => emit('openChanges'),
         }, `Änderungen (${props.totalChangeCount})`),
+        h('div', { class: 'theme-tabs', role: 'group', 'aria-label': 'Farbschema wählen' }, [
+          h('button', { class: preference.value === 'light' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('light'), title: 'Helles Design', 'aria-label': 'Helles Design' }, sunIcon()),
+          h('button', { class: preference.value === 'system' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('system'), title: 'System-Design', 'aria-label': 'System-Design' }, monitorIcon()),
+          h('button', { class: preference.value === 'dark' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('dark'), title: 'Dunkles Design', 'aria-label': 'Dunkles Design' }, moonIcon()),
+        ]),
         h('button', {
           class: 'icon-btn icon-btn-logout',
           onClick: () => emit('requestLogout'),
