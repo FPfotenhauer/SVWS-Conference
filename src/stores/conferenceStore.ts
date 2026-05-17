@@ -400,6 +400,12 @@ export const useConferenceStore = defineStore('conference', () => {
     return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.note ?? null
   }
 
+  function getOriginalNoteQuartal(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    return schueler.leistungsdaten.find(ld => ld.lerngruppenID === lerngruppeId)?.noteQuartal ?? null
+  }
+
   function getNote(schuelerId: number, lerngruppeId: number): Notenkuerzel | null {
     const key = getChangeKey(schuelerId, lerngruppeId)
     if (noteChanges.value.has(key)) {
@@ -1067,6 +1073,7 @@ export const useConferenceStore = defineStore('conference', () => {
     selectKlasse,
     selectLerngruppe,
     getNote,
+    getOriginalNoteQuartal,
     updateNote,
     isNoteChanged,
     clearNoteChanges,

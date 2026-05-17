@@ -15,6 +15,7 @@ export default defineComponent({
     lupeViewMode: { type: String as PropType<'kachel' | 'tabelle'>, required: true },
     lupeFehlstundenMode: { type: String as PropType<'gesamt' | 'fach'>, required: true },
     notenAnzeigeMode: { type: String as PropType<'noten' | 'punkte'>, required: true },
+    noteCycleMode: { type: String as PropType<'halbjahr' | 'quartal'>, required: true },
     lupeRemarksCollapsed: { type: Boolean, required: true },
     avg: { type: String, required: true },
     gradedCount: { type: Number, required: true },
@@ -34,6 +35,7 @@ export default defineComponent({
     'setLupeViewMode',
     'setLupeFehlstundenMode',
     'setNotenAnzeigeMode',
+    'setNoteCycleMode',
     'toggleLupeRemarksCollapsed',
     'startLupeColumnResize',
   ],
@@ -84,6 +86,16 @@ export default defineComponent({
                   class: props.notenAnzeigeMode === 'punkte' ? 'lupe-view-btn active' : 'lupe-view-btn',
                   onClick: () => emit('setNotenAnzeigeMode', 'punkte'),
                 }, 'Punkte'),
+              ]),
+              h('div', { class: 'lupe-view-toggle' }, [
+                h('button', {
+                  class: props.noteCycleMode === 'halbjahr' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                  onClick: () => emit('setNoteCycleMode', 'halbjahr'),
+                }, 'Halbjahr'),
+                h('button', {
+                  class: props.noteCycleMode === 'quartal' ? 'lupe-view-btn active' : 'lupe-view-btn',
+                  onClick: () => emit('setNoteCycleMode', 'quartal'),
+                }, 'Quartal'),
               ]),
             ]),
             h('div', { class: 'lupe-nav' }, [

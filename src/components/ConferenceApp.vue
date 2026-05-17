@@ -215,6 +215,7 @@ const App = defineComponent({
     // Editing and layout state for the table.
     const editingCell = ref<string | null>(null)
     const tableScale = ref<'kompakt' | 'gross'>('kompakt')
+    const noteCycleMode = ref<'halbjahr' | 'quartal'>('halbjahr')
 
     // Dialog visibility state.
     const timerModalOpen = ref(false)
@@ -717,6 +718,7 @@ const App = defineComponent({
         selectedKlasseId: store.selectedKlasseId,
         selectedSchuelerId: selectedSchuelerId.value,
         notenAnzeigeMode: notenAnzeigeMode.value,
+        noteCycleMode: noteCycleMode.value,
         lupeFehlstundenMode: lupeFehlstundenMode.value,
         lupeColumnWidths: lupeColumnWidths.value,
         timerRunning: timerRunning.value,
@@ -803,6 +805,7 @@ const App = defineComponent({
               availableKlassen: store.availableKlassen,
               activeMode: activeMode.value,
               notenAnzeigeMode: notenAnzeigeMode.value,
+              noteCycleMode: noteCycleMode.value,
               lupeOpen: lupeOpen.value,
               timerRunning: timerRunning.value,
               timerFinishedFlash: timerFinishedFlash.value,
@@ -824,6 +827,9 @@ const App = defineComponent({
               },
               onSetNotenAnzeigeMode: (mode: 'noten' | 'punkte') => {
                 notenAnzeigeMode.value = mode
+              },
+              onSetNoteCycleMode: (mode: 'halbjahr' | 'quartal') => {
+                noteCycleMode.value = mode
               },
               onToggleLupe: () => {
                 lupeOpen.value = !lupeOpen.value
@@ -847,7 +853,12 @@ const App = defineComponent({
               editingCell: editingCell.value,
               notenOptions,
               getNoteDisplay,
-              getNote: (schuelerId: number, lgId: number) => store.getNote(schuelerId, lgId),
+              getNote: (schuelerId: number, lgId: number) => {
+                if (noteCycleMode.value === 'quartal') {
+                  return store.getOriginalNoteQuartal(schuelerId, lgId)
+                }
+                return store.getNote(schuelerId, lgId)
+              },
               isNoteChanged: (schuelerId: number, lgId: number) => store.isNoteChanged(schuelerId, lgId),
               gradeClass,
               onSelectSchueler: (schuelerId: number) => {
@@ -873,6 +884,7 @@ const App = defineComponent({
               lupeViewMode: lupeViewMode.value,
               lupeFehlstundenMode: lupeFehlstundenMode.value,
               notenAnzeigeMode: notenAnzeigeMode.value,
+              noteCycleMode: noteCycleMode.value,
               lupeRemarksCollapsed: lupeRemarksCollapsed.value,
               avg,
               gradedCount,
@@ -899,6 +911,9 @@ const App = defineComponent({
               },
               onSetNotenAnzeigeMode: (mode: 'noten' | 'punkte') => {
                 notenAnzeigeMode.value = mode
+              },
+              onSetNoteCycleMode: (mode: 'halbjahr' | 'quartal') => {
+                noteCycleMode.value = mode
               },
               onToggleLupeRemarksCollapsed: () => {
                 lupeRemarksCollapsed.value = !lupeRemarksCollapsed.value

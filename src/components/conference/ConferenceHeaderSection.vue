@@ -15,6 +15,7 @@ export default defineComponent({
     availableKlassen: { type: Array as PropType<KlasseItem[]>, required: true },
     activeMode: { type: String as PropType<'klasse' | 'lerngruppe'>, required: true },
     notenAnzeigeMode: { type: String as PropType<'noten' | 'punkte'>, required: true },
+    noteCycleMode: { type: String as PropType<'halbjahr' | 'quartal'>, required: true },
     lupeOpen: { type: Boolean, required: true },
     timerRunning: { type: Boolean, required: true },
     timerFinishedFlash: { type: Boolean, required: true },
@@ -33,6 +34,7 @@ export default defineComponent({
     'selectKlasse',
     'setActiveMode',
     'setNotenAnzeigeMode',
+    'setNoteCycleMode',
     'toggleLupe',
     'openTimer',
     'toggleTableScale',
@@ -77,6 +79,16 @@ export default defineComponent({
             class: props.notenAnzeigeMode === 'punkte' ? 'mode-tab active' : 'mode-tab',
             onClick: () => emit('setNotenAnzeigeMode', 'punkte'),
           }, 'Punkte'),
+        ]),
+        h('div', { class: 'mode-tabs' }, [
+          h('button', {
+            class: props.noteCycleMode === 'halbjahr' ? 'mode-tab active' : 'mode-tab',
+            onClick: () => emit('setNoteCycleMode', 'halbjahr'),
+          }, 'Halbjahr'),
+          h('button', {
+            class: props.noteCycleMode === 'quartal' ? 'mode-tab active' : 'mode-tab',
+            onClick: () => emit('setNoteCycleMode', 'quartal'),
+          }, 'Quartal'),
         ]),
         h('div', { class: 'spacer' }),
         h('button', {

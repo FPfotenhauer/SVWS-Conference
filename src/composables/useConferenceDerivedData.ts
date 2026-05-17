@@ -11,6 +11,7 @@ export function buildConferenceDerivedData(params: {
   selectedKlasseId: number | null
   selectedSchuelerId: number | null
   notenAnzeigeMode: 'noten' | 'punkte'
+  noteCycleMode: 'halbjahr' | 'quartal'
   lupeFehlstundenMode: 'gesamt' | 'fach'
   lupeColumnWidths: Record<'fach' | 'kursart' | 'lehrer' | 'fs' | 'fsu' | 'note', number>
   timerRunning: boolean
@@ -28,6 +29,7 @@ export function buildConferenceDerivedData(params: {
     selectedKlasseId,
     selectedSchuelerId,
     notenAnzeigeMode,
+    noteCycleMode,
     lupeFehlstundenMode,
     lupeColumnWidths,
     timerRunning,
@@ -128,7 +130,9 @@ export function buildConferenceDerivedData(params: {
       const lgId = selectedSchuelerLerngruppenByFachId.get(fach.id)
       if (!lgId) return []
 
-      const note = store.getNote(selectedSchueler.schueler.id, lgId)
+      const note = noteCycleMode === 'quartal'
+        ? store.getOriginalNoteQuartal(selectedSchueler.schueler.id, lgId)
+        : store.getNote(selectedSchueler.schueler.id, lgId)
       if (note === 'NE') return []
 
       const tone = lupeTone(note)
