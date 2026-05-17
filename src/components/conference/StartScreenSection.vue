@@ -164,7 +164,10 @@ export default defineComponent({
     return () => [
       h('section', { class: 'hero' }, [
         h('p', { class: 'hero-kicker' }, 'Startbildschirm'),
-        h('h1', 'SVWS Konferenzübersicht'),
+        h('h1', [
+          'SVWS Konferenzübersicht',
+          h('span', { class: 'hero-version' }, `v${__APP_VERSION__}`),
+        ]),
         h('p', { class: 'hero-text' }, 'Wähle eine Datenquelle, um die Notenkonferenz zu starten.'),
       ]),
       h('section', { class: 'tile-grid' }, [

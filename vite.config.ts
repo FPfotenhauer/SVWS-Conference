@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { version } from './package.json'
 
 type ProxyPayload = {
   baseUrl: string
@@ -148,6 +149,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     define: {
+      __APP_VERSION__: JSON.stringify(version),
       __SVWS_DEFAULTS__: JSON.stringify({
         host: env.SVWSSERVER_HOST ?? '',
         port: env.SVWSSERVER_PORT ?? '',
