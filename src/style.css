@@ -1843,6 +1843,11 @@ td.changed {
   font-family: inherit;
   color: var(--conf-ink);
   background: var(--conf-surface);
+  color-scheme: light;
+}
+
+:root.dark .lupe-stat-input {
+  color-scheme: dark;
 }
 
 .lupe-stat-input:focus {

@@ -179,6 +179,10 @@ export default defineComponent({
                   onInput: (event: Event) => {
                     const value = Number((event.target as HTMLInputElement).value)
                     props.store.updateFehlstundenValue(props.selectedSchueler.schueler.id, 'fehlstundenGesamt', value)
+                    const unentschuldigt = props.fehlstundenUnentschuldigt ?? 0
+                    if (unentschuldigt > value) {
+                      props.store.updateFehlstundenValue(props.selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt', value)
+                    }
                   },
                 }),
               ])
@@ -191,8 +195,14 @@ export default defineComponent({
                   class: 'lupe-stat-input',
                   value: props.fehlstundenUnentschuldigt ?? 0,
                   min: '0',
+                  max: String(props.fehlstundenGesamt ?? 0),
                   onInput: (event: Event) => {
-                    const value = Number((event.target as HTMLInputElement).value)
+                    const input = event.target as HTMLInputElement
+                    const gesamt = props.fehlstundenGesamt ?? 0
+                    const value = Math.min(Number(input.value), gesamt)
+                    if (Number(input.value) > gesamt) {
+                      input.value = String(gesamt)
+                    }
                     props.store.updateFehlstundenValue(props.selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt', value)
                   },
                 }),
