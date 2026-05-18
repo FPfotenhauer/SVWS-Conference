@@ -1656,6 +1656,13 @@ td.changed {
   width: auto;
 }
 
+.lupe-table .lupe-col-no-tl {
+  width: auto;
+  color: var(--conf-ink-soft);
+  font-style: italic;
+  font-weight: 400;
+}
+
 .lupe-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -1725,6 +1732,7 @@ td.changed {
   font: inherit;
   font-weight: 700;
   padding: 2px 8px;
+  color: var(--conf-ink);
 }
 
 .lupe-table-note-select:focus,

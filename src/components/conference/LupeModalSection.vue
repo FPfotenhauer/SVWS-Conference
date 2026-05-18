@@ -77,7 +77,9 @@ export default defineComponent({
       return subject.teilleistungen.find((tl: any) => tl.artID === artID) ?? null
     }
 
-    return () => props.open
+    return () => {
+      const teilleistungsarten = getAllTeilleistungsarten()
+      return props.open
       ? h('div', {
         class: 'lupe-modal-bg open',
         onClick: (event: MouseEvent) => {
@@ -248,9 +250,11 @@ export default defineComponent({
                         ]),
                         ...(props.lupeTableDetailMode === 'bemerkungen'
                           ? [h('th', { class: 'lupe-col-remark' }, 'Fachbezogene Bemerkungen')]
-                          : getAllTeilleistungsarten().map((art) =>
-                            h('th', { class: 'lupe-col-teilleistung' }, art.bezeichnung)
-                          )
+                          : teilleistungsarten.length === 0
+                            ? [h('th', { class: 'lupe-col-no-tl' }, 'Keine Teilleistungen vorhanden')]
+                            : teilleistungsarten.map((art) =>
+                              h('th', { class: 'lupe-col-teilleistung' }, art.bezeichnung)
+                            )
                         ),
                       ]),
                     ]),
@@ -312,25 +316,27 @@ export default defineComponent({
                             }),
                           ]),
                         ]
-                        : getAllTeilleistungsarten().map((art) => {
-                          const tl = getTeilleistungByArtID(subject, art.id)
-                          return h('td', { class: 'lupe-col-teilleistung' },
-                            tl && props.selectedSchueler
-                              ? h('select', {
-                                class: `lupe-table-note-select lupe-tl-select ${tl.note ?? ''}`,
-                                value: props.store.getTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id) ?? '',
-                                onChange: (event: Event) => {
-                                  if (!props.selectedSchueler) return
-                                  const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
-                                  props.store.updateTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id, newNote || null)
-                                },
-                              }, [
-                                h('option', { value: '' }, '–'),
-                                ...props.notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, props.getNoteDisplay(n.kuerzel))),
-                              ])
-                              : h('span', { class: 'lupe-tl-empty' }, '–')
-                          )
-                        })
+                        : teilleistungsarten.length === 0
+                          ? [h('td', { class: 'lupe-col-no-tl' })]
+                          : teilleistungsarten.map((art) => {
+                            const tl = getTeilleistungByArtID(subject, art.id)
+                            return h('td', { class: 'lupe-col-teilleistung' },
+                              tl && props.selectedSchueler
+                                ? h('select', {
+                                  class: `lupe-table-note-select lupe-tl-select ${tl.note ?? ''}`,
+                                  value: props.store.getTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id) ?? '',
+                                  onChange: (event: Event) => {
+                                    if (!props.selectedSchueler) return
+                                    const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                                    props.store.updateTeilleistungNote(props.selectedSchueler.schueler.id, subject.lgId, tl.id, newNote || null)
+                                  },
+                                }, [
+                                  h('option', { value: '' }, '–'),
+                                  ...props.notenOptions.map((n: EnmNote) => h('option', { value: n.kuerzel }, props.getNoteDisplay(n.kuerzel))),
+                                ])
+                                : h('span', { class: 'lupe-tl-empty' }, '–')
+                            )
+                          })
                       ),
                     ]))),
                   ]),
@@ -369,6 +375,7 @@ export default defineComponent({
         ]),
       ])
       : null
+    }
   },
 })
 </script>
