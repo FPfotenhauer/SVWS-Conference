@@ -87,6 +87,19 @@ Wenn die Daten geladen sind, kann die Anwendung direkt im Konferenzalltag genutz
 - Notenstände vergleichen
 - Konferenzentscheidungen vorbereiten
 
+## Schritt 6: Impressum einrichten
+
+Im Anwendungsordner liegt die Datei `impressum.example.js`. Sie enthält ein Beispiel-Impressum mit Platzhaltern und muss vor dem Einsatz angepasst werden.
+
+1. Die Datei `impressum.example.js` in einem Texteditor öffnen
+2. Die Schuladaten, Kontaktdaten und den Schulträger eintragen
+3. Datum unter `Stand:` aktualisieren
+4. Datei als `impressum.js` im gleichen Ordner speichern
+
+Die Datei `impressum.example.js` bleibt unverändert als Vorlage erhalten. Die Anwendung liest ausschließlich `impressum.js`.
+
+Hinweis: Das Impressum wird im Browser der Nutzerinnen und Nutzer angezeigt. Es gelten die datenschutzrechtlichen Anforderungen des jeweiligen Bundeslandes. Im reinen Offline-Betrieb (Öffnen per Doppelklick ohne Webserver) ist kein Impressum erforderlich.
+
 ## Häufige Startprobleme
 
 - Anwendung startet nicht: prüfen, ob index.html im richtigen Ordner geöffnet wurde
