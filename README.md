@@ -33,6 +33,14 @@ Der fertige Build liegt im Ordner `dist/`. Die Dateien darin können auf jeden W
 
 Hinweis: Der Standard-Build ist bewusst offline-fähig erzeugt, damit das Öffnen per `file://` funktioniert.
 
+## Release erstellen
+
+```bash
+npm run release
+```
+
+Baut das Projekt und erstellt eine ZIP-Datei im Ordner `release/`, die alle Dateien aus `dist/` enthält — inklusive `impressum.example.js`. Die Datei ist versioniert benannt, z. B. `svws-conference-0.4.0.zip`, und kann direkt an Schulen weitergegeben werden.
+
 ## Qualitätssicherung
 
 ```bash
