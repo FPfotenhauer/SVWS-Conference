@@ -28,21 +28,21 @@ export default defineComponent({
     const { preference, setTheme } = useTheme()
 
     function sunIcon() {
-      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+      return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
         h('circle', { cx: '8', cy: '8', r: '3', stroke: 'currentColor', 'stroke-width': '1.5' }),
         h('path', { d: 'M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.42 1.42M11.18 11.18l1.42 1.42M12.6 3.4l-1.42 1.42M4.82 11.18l-1.42 1.42', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
       ])
     }
 
     function monitorIcon() {
-      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+      return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
         h('rect', { x: '1', y: '2', width: '14', height: '10', rx: '1.5', stroke: 'currentColor', 'stroke-width': '1.5' }),
         h('path', { d: 'M5.5 14.5h5M8 12v2.5', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
       ])
     }
 
     function moonIcon() {
-      return h('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', 'aria-hidden': 'true' }, [
+      return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
         h('path', { d: 'M12.5 10A6 6 0 0 1 6 3.5a6 6 0 1 0 6.5 6.5Z', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
       ])
     }
@@ -121,69 +121,6 @@ export default defineComponent({
       impressumOpen.value = false
     }
 
-    function cloudIcon() {
-      return h(
-        'svg',
-        {
-          viewBox: '0 0 24 24',
-          fill: 'none',
-          xmlns: 'http://www.w3.org/2000/svg',
-          'aria-hidden': 'true',
-        },
-        [
-          h('path', {
-            d: 'M7.5 18a4.5 4.5 0 0 1-.8-8.93A6 6 0 0 1 18 11h.5a3.5 3.5 0 1 1 0 7H7.5Z',
-            stroke: 'currentColor',
-            'stroke-width': '1.7',
-            'stroke-linecap': 'round',
-            'stroke-linejoin': 'round',
-          }),
-          h('path', {
-            d: 'M12 9.75v6.5m0-6.5 2.5 2.5M12 9.75l-2.5 2.5',
-            stroke: 'currentColor',
-            'stroke-width': '1.7',
-            'stroke-linecap': 'round',
-            'stroke-linejoin': 'round',
-          }),
-        ]
-      )
-    }
-
-    function uploadIcon() {
-      return h(
-        'svg',
-        {
-          viewBox: '0 0 24 24',
-          fill: 'none',
-          xmlns: 'http://www.w3.org/2000/svg',
-          'aria-hidden': 'true',
-        },
-        [
-          h('path', {
-            d: 'M9 3.75h7.5L21 8.25V18.5A2.5 2.5 0 0 1 18.5 21h-13A2.5 2.5 0 0 1 3 18.5v-12A2.5 2.5 0 0 1 5.5 4H9Z',
-            stroke: 'currentColor',
-            'stroke-width': '1.7',
-            'stroke-linecap': 'round',
-            'stroke-linejoin': 'round',
-          }),
-          h('path', {
-            d: 'M16.5 3.75V8.5H21',
-            stroke: 'currentColor',
-            'stroke-width': '1.7',
-            'stroke-linecap': 'round',
-            'stroke-linejoin': 'round',
-          }),
-          h('path', {
-            d: 'M12 16.75V10.5m0 0 2.25 2.25M12 10.5l-2.25 2.25M8.5 18.5h7',
-            stroke: 'currentColor',
-            'stroke-width': '1.7',
-            'stroke-linecap': 'round',
-            'stroke-linejoin': 'round',
-          }),
-        ]
-      )
-    }
-
     return () => [
       h('div', { class: 'start-topbar' }, [
         h('div', { class: 'theme-tabs theme-tabs-start', role: 'group', 'aria-label': 'Farbschema wählen' }, [
@@ -202,9 +139,7 @@ export default defineComponent({
       ]),
       h('section', { class: 'tile-grid' }, [
         h('article', { class: 'tile tile-server' }, [
-          h('div', { class: 'tile-icon' }, [cloudIcon()]),
           h('h2', 'Verbindung zum SVWS-Server aufbauen'),
-          h('p', 'Direkter Abruf des ENM-Exports per API mit URL, Schema und BasicAuth.'),
           h('div', { class: 'tile-fields' }, [
             h('input', {
               class: 'tile-input',
@@ -266,7 +201,6 @@ export default defineComponent({
           }, props.loading ? 'Verbinde...' : 'Server verbinden'),
         ]),
         h('article', { class: 'tile tile-upload' }, [
-          h('div', { class: 'tile-icon' }, [uploadIcon()]),
           h('h2', 'Upload der Notendatei'),
           h('p', 'Lade eine lokale Datei im Format enm.json.gz direkt in den Browser.'),
           h('input', {
