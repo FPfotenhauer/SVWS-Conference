@@ -143,8 +143,8 @@ export default defineComponent({
       ]),
       h('div', { class: 'infobar' }, [
         h('div', ['Klasse: ', h('b', props.selectedKlasseLabel)]),
-        h('div', ['Schueler: ', h('b', String(props.schuelerCount))]),
-        h('div', ['Faecher: ', h('b', String(props.faecherCount))]),
+        h('div', ['Schüler: ', h('b', String(props.schuelerCount))]),
+        h('div', ['Fächer: ', h('b', String(props.faecherCount))]),
         h('div', [props.schuljahrAbschnittLabel]),
         props.savedIndicatorText
           ? h('div', { class: 'saved-chip' }, props.savedIndicatorText)

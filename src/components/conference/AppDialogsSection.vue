@@ -101,7 +101,7 @@ export default defineComponent({
               h('button', { class: `timer-option ${props.timerRepeatEnabled ? 'active' : ''}`.trim(), onClick: () => emit('toggleTimerRepeat') }, props.timerRepeatEnabled ? 'Repeat: an' : 'Repeat: aus'),
             ]),
             h('div', { class: 'timer-modal-btns' }, [
-              h('button', { class: 'timer-btn', onClick: () => emit('resetTimer') }, 'Zuruecksetzen'),
+              h('button', { class: 'timer-btn', onClick: () => emit('resetTimer') }, 'Zurücksetzen'),
               h('button', { class: `timer-btn primary ${props.timerRunning ? 'stop' : ''}`.trim(), onClick: () => emit('toggleTimer') }, props.timerRunning ? 'Pause' : (props.timerRemainingSeconds < props.timerTotalSeconds ? 'Weiter' : 'Starten')),
             ]),
           ]),
