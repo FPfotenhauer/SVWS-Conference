@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-const STORAGE_KEY = 'svws-theme'
+const STORAGE_KEY = 'dark-mode'
 
 function readStored(): ThemePreference {
   try {

@@ -75,6 +75,7 @@ export default defineComponent({
               }, `${Math.floor(seconds / 60)} min`)
             )),
             h('div', { class: 'timer-custom' }, [
+              h('button', { class: 'timer-step-btn', type: 'button', onClick: () => { customMinutes.value = Math.max(1, customMinutes.value - 1) } }, '−'),
               h('input', {
                 class: 'timer-custom-input',
                 type: 'number',
@@ -93,6 +94,7 @@ export default defineComponent({
                   }
                 },
               }),
+              h('button', { class: 'timer-step-btn', type: 'button', onClick: () => { customMinutes.value = Math.min(999, customMinutes.value + 1) } }, '+'),
               h('span', { class: 'timer-custom-unit' }, 'min'),
               h('button', { class: 'timer-preset', onClick: applyCustomMinutes }, 'Setzen'),
             ]),
@@ -101,7 +103,7 @@ export default defineComponent({
               h('button', { class: `timer-option ${props.timerRepeatEnabled ? 'active' : ''}`.trim(), onClick: () => emit('toggleTimerRepeat') }, props.timerRepeatEnabled ? 'Repeat: an' : 'Repeat: aus'),
             ]),
             h('div', { class: 'timer-modal-btns' }, [
-              h('button', { class: 'timer-btn', onClick: () => emit('resetTimer') }, 'Zuruecksetzen'),
+              h('button', { class: 'timer-btn', onClick: () => emit('resetTimer') }, 'Zurücksetzen'),
               h('button', { class: `timer-btn primary ${props.timerRunning ? 'stop' : ''}`.trim(), onClick: () => emit('toggleTimer') }, props.timerRunning ? 'Pause' : (props.timerRemainingSeconds < props.timerTotalSeconds ? 'Weiter' : 'Starten')),
             ]),
           ]),
