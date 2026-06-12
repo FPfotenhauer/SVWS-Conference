@@ -150,13 +150,13 @@ export default defineConfig(({ mode }) => {
     base: './',
     define: {
       __APP_VERSION__: JSON.stringify(version),
-      __SVWS_DEFAULTS__: JSON.stringify({
+      __SVWS_DEFAULTS__: JSON.stringify(mode === 'development' ? {
         host: env.SVWSSERVER_HOST ?? '',
         port: env.SVWSSERVER_PORT ?? '',
         schema: env.SVWSSERVER_SCHEMA ?? '',
         user: env.SVWSSERVER_USER ?? '',
         password: env.SVWSSERVER_PASSWORD ?? '',
-      }),
+      } : {}),
     },
     server: {
       host: true,

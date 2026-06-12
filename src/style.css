@@ -211,7 +211,7 @@ body {
 }
 
 .app-shell:not(.conference-shell) {
-  zoom: 0.6;
+  zoom: 0.8;
 }
 
 .hero {
