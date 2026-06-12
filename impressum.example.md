@@ -39,5 +39,6 @@ E-Mail: support@muster-it.de
 
 Diese Website dient der Noteneingabe für Lehrkräfte der Beispiel-Grundschule Musterstadt. Öffentlicher Zugriff ist möglich, es werden aber keinerlei Daten versendet. Alle Daten verbleiben im Browser des Endgeräts.
 
+** Ändern Sie diese Datei auf Ihre gewünschten Daten und speichern Sie diese als impressum.js im Hauptverzeichnis der App. **
 
 Stand: April 2026

@@ -21,7 +21,6 @@ export default defineComponent({
     'updatePassword',
     'updateTrustSelfSigned',
     'connectToServer',
-    'configFileSelected',
     'fileSelected',
   ],
   setup(props, { emit }) {
@@ -50,7 +49,6 @@ export default defineComponent({
     type ImpressumWindow = Window & { __IMPRESSUM_MARKDOWN__?: string }
 
     const fileInput = ref<HTMLInputElement | null>(null)
-    const configInput = ref<HTMLInputElement | null>(null)
     const impressumOpen = ref(false)
     const impressumLoading = ref(false)
     const impressumContent = ref('')
@@ -64,19 +62,26 @@ export default defineComponent({
       }
 
       await new Promise<void>((resolve, reject) => {
-        const script = document.createElement('script')
-        script.src = new URL('impressum.js', window.location.href).toString()
-        script.async = true
-        script.onload = () => resolve()
-        script.onerror = () => {
-          reject(
-            new Error(
-              'Die Datei "impressum.js" wurde nicht gefunden. ' +
-              'Bitte benennen Sie "impressum.example.js" in "impressum.js" um und tragen Sie dort Ihre Schuldaten ein.'
-            )
-          )
+        function loadScript(src: string, onError: () => void) {
+          const script = document.createElement('script')
+          script.src = src
+          script.async = true
+          script.onload = () => resolve()
+          script.onerror = onError
+          document.head.appendChild(script)
         }
-        document.head.appendChild(script)
+
+        const primary = new URL('impressum.js', window.location.href).toString()
+        const fallback = new URL('impressum.example.js', window.location.href).toString()
+
+        loadScript(primary, () => {
+          loadScript(fallback, () => {
+            reject(new Error(
+              'Weder "impressum.js" noch "impressum.example.js" wurden gefunden. ' +
+              'Bitte benennen Sie "impressum.example.js" in "impressum.js" um und tragen Sie dort Ihre Schuldaten ein.'
+            ))
+          })
+        })
       })
 
       const loaded = (window as ImpressumWindow).__IMPRESSUM_MARKDOWN__
@@ -180,20 +185,6 @@ export default defineComponent({
             }),
             h('span', 'Zertifikat vertrauen (selbstsigniert)'),
           ]),
-          h('input', {
-            ref: configInput,
-            class: 'hidden-file-input',
-            type: 'file',
-            accept: '.env,.txt,text/plain',
-            onChange: (event: Event) => emit('configFileSelected', event),
-          }),
-          h('button', {
-            class: 'tile-button tile-button-secondary',
-            onClick: () => {
-              configInput.value?.click()
-            },
-            disabled: props.loading,
-          }, 'Konfiguration laden (.env)'),
           h('button', {
             class: 'tile-button',
             onClick: () => emit('connectToServer'),

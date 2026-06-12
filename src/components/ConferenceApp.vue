@@ -62,39 +62,6 @@ function buildDefaultBaseUrl(host: string, port: string): string {
     : `https://${trimmedHost}`
 }
 
-// Accepts a text flag and returns a boolean meaning where possible.
-// Supports common variants such as 1/true/yes/on/ja.
-function parseBooleanFlag(value: string | undefined): boolean | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) return undefined
-  return ['1', 'true', 'yes', 'on', 'ja'].includes(normalized)
-}
-
-// Parse a simple env-style file with key=value lines.
-// Ignores comments and optional export prefixes.
-function parseEnvLikeText(content: string): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line || line.startsWith('#')) continue
-
-    const cleaned = line.startsWith('export ') ? line.slice(7).trim() : line
-    const separatorIndex = cleaned.indexOf('=')
-    if (separatorIndex <= 0) continue
-
-    const key = cleaned.slice(0, separatorIndex).trim()
-    let value = cleaned.slice(separatorIndex + 1).trim()
-    if (
-      (value.startsWith('"') && value.endsWith('"'))
-      || (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-    result[key] = value
-  }
-  return result
-}
 
 // Load persisted connection config from localStorage, omitting any stored password.
 function readStoredRuntimeConfig(): Partial<RuntimeSvwsConfig> {
@@ -465,47 +432,6 @@ const App = defineComponent({
       }
     }
 
-    // Load a .env-like config file and populate the server settings.
-    async function onConfigFileSelected(event: Event) {
-      const target = event.target as HTMLInputElement
-      const file = target.files?.[0]
-      if (!file) return
-
-      try {
-        const content = await file.text()
-        const env = parseEnvLikeText(content)
-
-        const host = env['SVWSSERVER_HOST'] ?? env['VITE_SVWSSERVER_HOST']
-        const port = env['SVWSSERVER_PORT'] ?? env['VITE_SVWSSERVER_PORT'] ?? ''
-        const baseUrl = env['SVWS_BASE_URL'] ?? env['VITE_SVWS_BASE_URL']
-        const schema = env['SVWSSERVER_SCHEMA'] ?? env['VITE_SVWSSERVER_SCHEMA']
-        const user = env['SVWSSERVER_USER'] ?? env['VITE_SVWSSERVER_USER']
-        const pass = env['SVWSSERVER_PASSWORD'] ?? env['VITE_SVWSSERVER_PASSWORD']
-        const trustFlag =
-          parseBooleanFlag(env['SVWSSERVER_TRUST_SELF_SIGNED'])
-          ?? parseBooleanFlag(env['VITE_SVWSSERVER_TRUST_SELF_SIGNED'])
-
-        if (typeof baseUrl === 'string' && baseUrl.trim()) {
-          serverUrl.value = baseUrl.trim()
-        } else if (typeof host === 'string' && host.trim()) {
-          serverUrl.value = buildDefaultBaseUrl(host, port)
-        }
-        if (typeof schema === 'string') serverSchema.value = schema
-        if (typeof user === 'string') username.value = user
-        if (typeof pass === 'string') password.value = pass
-        if (typeof trustFlag === 'boolean') trustSelfSigned.value = trustFlag
-
-        persistRuntimeConfig()
-        status.value = `Konfiguration geladen: ${file.name}`
-      } catch (error) {
-        status.value = error instanceof Error
-          ? `Konfigurationsdatei konnte nicht gelesen werden: ${error.message}`
-          : 'Konfigurationsdatei konnte nicht gelesen werden.'
-      } finally {
-        target.value = ''
-      }
-    }
-
     // Load ENM data from a selected file instead of from the server.
     async function onFileSelected(event: Event) {
       const target = event.target as HTMLInputElement
@@ -793,9 +719,6 @@ const App = defineComponent({
             },
             onConnectToServer: () => {
               void connectToServer()
-            },
-            onConfigFileSelected: (event: Event) => {
-              void onConfigFileSelected(event)
             },
             onFileSelected: (event: Event) => {
               void onFileSelected(event)
