@@ -3,6 +3,7 @@ import { defineComponent, h, ref } from 'vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { useTheme } from '../../composables/useTheme'
+import datenschutzRawMd from '../../../docs/datenschutz.md?raw'
 
 export default defineComponent({
   name: 'StartScreenSection',
@@ -54,6 +55,9 @@ export default defineComponent({
     const impressumContent = ref('')
     const impressumHtml = ref('')
     const impressumError = ref('')
+
+    const datenschutzOpen = ref(false)
+    const datenschutzHtml = DOMPurify.sanitize(marked.parse(datenschutzRawMd, { async: false }))
 
     async function loadImpressumScript() {
       const existing = (window as ImpressumWindow).__IMPRESSUM_MARKDOWN__
@@ -211,12 +215,55 @@ export default defineComponent({
         ]),
       ]),
       h('section', { class: 'impressum-section' }, [
+        h('a', {
+          class: 'impressum-link',
+          href: 'https://doku.svws-nrw.de/svws_module/svws_konferenzuebersicht/',
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        }, 'Hilfe'),
         h('button', {
           class: 'impressum-link',
           type: 'button',
           onClick: () => { void openImpressumModal() },
         }, 'Impressum'),
+        h('button', {
+          class: 'impressum-link',
+          type: 'button',
+          onClick: () => { datenschutzOpen.value = true },
+        }, 'Datenschutzhinweise'),
       ]),
+      datenschutzOpen.value
+        ? h('div', {
+          class: 'impressum-modal-bg open',
+          role: 'presentation',
+          onClick: (event: MouseEvent) => {
+            if (event.target === event.currentTarget) {
+              datenschutzOpen.value = false
+            }
+          },
+        }, [
+          h('section', {
+            class: 'impressum-modal datenschutz-modal',
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': 'datenschutz-modal-title',
+          }, [
+            h('div', { class: 'impressum-modal-head' }, [
+              h('h2', { id: 'datenschutz-modal-title', class: 'impressum-modal-title' }, 'Datenschutzhinweise'),
+              h('button', {
+                class: 'impressum-modal-close',
+                type: 'button',
+                onClick: () => { datenschutzOpen.value = false },
+                'aria-label': 'Datenschutzhinweise schließen',
+              }, 'Schließen'),
+            ]),
+            h('div', {
+              class: 'impressum-modal-content',
+              innerHTML: datenschutzHtml,
+            }),
+          ]),
+        ])
+        : null,
       impressumOpen.value
         ? h('div', {
           class: 'impressum-modal-bg open',
