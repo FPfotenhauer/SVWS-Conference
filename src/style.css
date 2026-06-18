@@ -362,6 +362,8 @@ h1 {
   margin-top: 0.85rem;
   display: flex;
   justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .impressum-link {
@@ -499,6 +501,11 @@ h1 {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 0.8rem 0;
+}
+
+.datenschutz-modal {
+  width: min(760px, calc(100vw - 2.4rem));
+  font-size: 0.85rem;
 }
 
 .status-line {
