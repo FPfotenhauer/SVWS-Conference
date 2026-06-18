@@ -32,3 +32,4 @@ Das Passwort wird ausschließlich temporär im Arbeitsspeicher des Browsers geha
 - Arbeiten Sie nach Möglichkeit über eine verschlüsselte `https://`-Verbindung.
 - Schließen Sie den Browser-Tab nach Abschluss der Konferenz.
 - Geben Sie ENM-Exportdateien nicht unbefugt weiter.
+
