@@ -29,7 +29,7 @@ export default defineComponent({
         return h('div', { class: 'placeholder-panel' }, 'Lerngruppenansicht folgt als naechster Ausbauschritt.')
       }
 
-      return h('div', { class: 'table-wrap' }, [
+      return h('div', { class: 'table-wrap', onClick: () => emit('cancelEditing') }, [
         h('table', [
           h('thead', [
             h('tr', [
@@ -59,7 +59,7 @@ export default defineComponent({
                 const isEditing = props.editingCell === `${entry.schueler.id}:${lgId}`
 
                 if (isEditing) {
-                  return h('td', [
+                  return h('td', { onClick: (event: Event) => event.stopPropagation() }, [
                     h('select', {
                       class: 'note-select',
                       value: note ?? '',

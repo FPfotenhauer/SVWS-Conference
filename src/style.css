@@ -1982,57 +1982,39 @@ td.changed {
   background: var(--conf-surface);
 }
 
-/* ── Theme picker ── */
-.theme-tabs {
-  display: flex;
-}
-
-.theme-tab {
+/* ── Theme toggle ── */
+.theme-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
+  border-radius: 50%;
   border: 1px solid var(--conf-border);
-  background: var(--conf-bg);
+  background: transparent;
   color: var(--conf-ink-soft);
   cursor: pointer;
   padding: 0;
-  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
 }
 
-.theme-tab:first-child {
-  border-radius: 6px 0 0 6px;
-}
-
-.theme-tab:last-child {
-  border-radius: 0 6px 6px 0;
-  border-left: none;
-}
-
-.theme-tab:not(:first-child):not(:last-child) {
-  border-left: none;
-}
-
-.theme-tab.active {
-  background: var(--conf-accent-bg);
+.theme-btn:hover {
+  color: var(--conf-accent);
   border-color: var(--conf-accent);
-  color: var(--conf-accent-dark);
 }
 
 /* Start-screen-Variante: verwendet Landing-page-Variablen */
-.theme-tabs-start .theme-tab {
+.theme-btn-start {
   border-color: var(--line);
-  background: transparent;
   color: var(--ink-soft);
-  height: 36px;
-  width: 36px;
+  width: 44px;
+  height: 44px;
 }
 
-.theme-tabs-start .theme-tab.active {
-  background: var(--surface-strong);
-  border-color: var(--accent);
+.theme-btn-start:hover {
   color: var(--accent);
+  border-color: var(--accent);
 }
 
 @media (max-width: 900px) {

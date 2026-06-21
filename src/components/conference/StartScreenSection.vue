@@ -27,25 +27,32 @@ export default defineComponent({
   setup(props, { emit }) {
     const { preference, setTheme } = useTheme()
 
-    function sunIcon() {
-      return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
-        h('circle', { cx: '8', cy: '8', r: '3', stroke: 'currentColor', 'stroke-width': '1.5' }),
-        h('path', { d: 'M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.42 1.42M11.18 11.18l1.42 1.42M12.6 3.4l-1.42 1.42M4.82 11.18l-1.42 1.42', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
-      ])
+    const themeOrder = ['system', 'light', 'dark'] as const
+
+    function cycleTheme() {
+      const next = themeOrder[(themeOrder.indexOf(preference.value) + 1) % themeOrder.length]
+      setTheme(next)
     }
 
-    function monitorIcon() {
+    const themeIcon = () => {
+      if (preference.value === 'light') {
+        return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
+          h('circle', { cx: '8', cy: '8', r: '3', stroke: 'currentColor', 'stroke-width': '1.5' }),
+          h('path', { d: 'M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.42 1.42M11.18 11.18l1.42 1.42M12.6 3.4l-1.42 1.42M4.82 11.18l-1.42 1.42', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
+        ])
+      }
+      if (preference.value === 'dark') {
+        return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
+          h('path', { d: 'M12.5 10A6 6 0 0 1 6 3.5a6 6 0 1 0 6.5 6.5Z', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+        ])
+      }
       return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
         h('rect', { x: '1', y: '2', width: '14', height: '10', rx: '1.5', stroke: 'currentColor', 'stroke-width': '1.5' }),
         h('path', { d: 'M5.5 14.5h5M8 12v2.5', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' }),
       ])
     }
 
-    function moonIcon() {
-      return h('svg', { viewBox: '0 0 16 16', width: '24', height: '24', fill: 'none', 'aria-hidden': 'true' }, [
-        h('path', { d: 'M12.5 10A6 6 0 0 1 6 3.5a6 6 0 1 0 6.5 6.5Z', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
-      ])
-    }
+    const themeTitle = () => ({ system: 'System-Theme', light: 'Hell', dark: 'Dunkel' }[preference.value])
 
     type ImpressumWindow = Window & { __IMPRESSUM_MARKDOWN__?: string }
 
@@ -132,11 +139,7 @@ export default defineComponent({
 
     return () => [
       h('div', { class: 'start-topbar' }, [
-        h('div', { class: 'theme-tabs theme-tabs-start', role: 'group', 'aria-label': 'Farbschema wählen' }, [
-          h('button', { class: preference.value === 'light' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('light'), title: 'Helles Design', 'aria-label': 'Helles Design' }, sunIcon()),
-          h('button', { class: preference.value === 'system' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('system'), title: 'System-Design', 'aria-label': 'System-Design' }, monitorIcon()),
-          h('button', { class: preference.value === 'dark' ? 'theme-tab active' : 'theme-tab', onClick: () => setTheme('dark'), title: 'Dunkles Design', 'aria-label': 'Dunkles Design' }, moonIcon()),
-        ]),
+        h('button', { class: 'theme-btn theme-btn-start', title: themeTitle(), 'aria-label': themeTitle(), onClick: cycleTheme }, themeIcon()),
       ]),
       h('section', { class: 'hero' }, [
         h('p', { class: 'hero-kicker' }, 'Startbildschirm'),
