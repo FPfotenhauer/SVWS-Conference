@@ -52,7 +52,7 @@ Auch wenn die Anwendung selbst keine Daten nach außen sendet, sollten organisat
 
 ## Architekturentscheidung
 
-Die in `docs/adrs/adr002.md` beschriebene Architekturentscheidung bestätigt diesen Ansatz: die Verarbeitung erfolgt vollständig clientseitig, ohne persistenten Datenspeicher und ohne Übertragung an Drittserver.
+Die in `docs/adrs/adr003-offline-modus.md` beschriebene Architekturentscheidung bestätigt diesen Ansatz: die Verarbeitung erfolgt vollständig clientseitig, ohne persistenten Datenspeicher und ohne Übertragung an Drittserver.
 
 ## Zusammenfassung
 

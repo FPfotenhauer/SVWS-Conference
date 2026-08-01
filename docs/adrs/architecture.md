@@ -87,13 +87,17 @@ SVWS-Conference/
 │
 ├── docs/
 │   ├── index.md                        # User Manual Start
-│   ├── adrs/                           # Architecture Decision Records
-│   │   ├── adr001.md                   # Kein Framework-Zwang → Vue 3 wählen
-│   │   ├── adr002.md                   # fflate statt pakojs
-│   │   ├── adr003.md                   # Offline-Modus als Hauptziel
+│   ├── adrs/                           # Architecture Decision Records (siehe adrs/README.md)
+│   │   ├── README.md                   # Index aller ADRs
+│   │   ├── adr001-framework-vue3.md    # Kein Framework-Zwang → Vue 3 wählen
+│   │   ├── adr002-fflate-zip-library.md # fflate statt pako
+│   │   ├── adr003-offline-modus.md     # Offline-Modus als Hauptziel
 │   │   ├── adr004-notenbearbeitung.md  # Lokaler Change-Buffer im Store
 │   │   ├── adr005-SVWS-Conference-Sicherheitsbericht.md
-│   │   └── adr006-OfflineMode-Sicherheitsbericht.md
+│   │   ├── adr006-OfflineMode-Sicherheitsbericht.md
+│   │   ├── adr007-design-system.md
+│   │   ├── adr008-electron-integration.md
+│   │   └── adr009-fix-k1-password-storage.md
 │   ├── manual/                         # Benutzerhandbuch (01-10-anhang)
 │   └── mockup-konferenzuebersicht.html # Screenshot Referenz
 │
@@ -269,10 +273,25 @@ Alle ADRs befinden sich in `docs/adrs/`. Hier die **Kernpunkte für Agenten**:
 
 ### ADR-005 & 006: Sicherheits-Audits (April 2026)
 - **Kritisch K-1:** Passwort darf NIEMALS in localStorage landen
-  - ✅ Fix: `persistRuntimeConfig()` schließt Passwort aus
+  - ✅ Fix: `persistRuntimeConfig()` schließt Passwort aus (umgesetzt in ADR-009)
   - ⚠️ Aber: `.env`-Upload muss auch gefixed werden
 - **Kritisch H-1:** ENM-Daten über Proxy zu Drittem = ungültig bei offline-first Architektur
 - **Für Agenten:** CSP-Header prüfen, localStorage-Keys auditieren, keine base64-Codierung als „Verschlüsselung"
+
+### ADR-007: Einheitliches Design-System
+- **Grund:** SVWS-Conference und SVWS-Import sollen als Produktfamilie einheitlich wirken
+- **Implication:** Emerald-Farbpalette, explizite CSS Custom Properties statt PrimeVue-Interna
+- **Für Agenten:** Keine `--p-surface-*`-Legacy-Variablen verwenden; Notenstufen- und LK-Badge-Farben bleiben app-spezifisch
+
+### ADR-008: Electron-Integration
+- **Grund:** SVWS-Server sendet ungültige CORS-Header (`credentials:true` + `allow-origin:*`), die Browser ablehnen
+- **Implication:** `electron/main.cjs` patcht CORS im Main-Process; `npm run release` baut AppImage, NSIS und Webserver-ZIP
+- **Für Agenten:** Browser-Build und Electron-Build müssen konsistent bleiben; TLS-Trust für selbstsignierte Zertifikate nur im Electron-Kontext
+
+### ADR-009: Fix K-1 — Passwort-Speicherung
+- **Grund:** Umsetzung des kritischen Befunds K-1 aus ADR-005
+- **Implication:** Passwort nur noch im reaktiven In-Memory-State, nie in localStorage; Migration bestehender Einträge beim Laden
+- **Für Agenten:** Bei jeder Änderung an der Config-Persistenz (`ge()`/`sG()`-Äquivalente) sicherstellen, dass `password` weiterhin ausgeschlossen bleibt
 
 ---
 
