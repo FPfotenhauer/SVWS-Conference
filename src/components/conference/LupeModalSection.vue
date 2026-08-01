@@ -29,6 +29,10 @@ export default defineComponent({
     lupeColumnWidths: { type: Object as PropType<Record<string, number>>, required: true },
     notenOptions: { type: Array as PropType<EnmNote[]>, required: true },
     getNoteDisplay: { type: Function as PropType<(note: Notenkuerzel | null) => string>, required: true },
+    timerRunning: { type: Boolean, required: true },
+    timerFinishedFlash: { type: Boolean, required: true },
+    timerLabel: { type: String, required: true },
+    showTimerChip: { type: Boolean, required: true },
   },
   emits: [
     'close',
@@ -40,6 +44,7 @@ export default defineComponent({
     'setLupeTableDetailMode',
     'toggleLupeRemarksCollapsed',
     'startLupeColumnResize',
+    'openTimer',
   ],
   setup(props, { emit }) {
     // Sammelt alle eindeutigen Teilleistungsarten über alle Subjects
@@ -151,6 +156,10 @@ export default defineComponent({
               ),
             ]),
             h('div', { class: 'lupe-nav' }, [
+              h('button', {
+                class: `icon-btn ${props.timerRunning ? 'timer-on' : ''} ${props.timerFinishedFlash ? 'timer-finished' : ''}`.trim(),
+                onClick: () => emit('openTimer'),
+              }, props.timerRunning || props.showTimerChip ? `Timer ${props.timerLabel}` : 'Timer'),
               h('button', {
                 class: 'lupe-nav-btn',
                 disabled: !props.klasse || props.selectedSchuelerIndex <= 0,

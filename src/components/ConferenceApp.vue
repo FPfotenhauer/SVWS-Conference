@@ -832,8 +832,15 @@ const App = defineComponent({
               lupeColumnWidths: lupeColumnWidths.value,
               notenOptions,
               getNoteDisplay,
+              timerRunning: timerRunning.value,
+              timerFinishedFlash: timerFinishedFlash.value,
+              timerLabel,
+              showTimerChip,
               onClose: () => {
                 lupeOpen.value = false
+              },
+              onOpenTimer: () => {
+                timerModalOpen.value = true
               },
               onNavigateSchueler: (direction: -1 | 1) => {
                 navigateSchueler(direction)
