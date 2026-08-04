@@ -59,6 +59,13 @@ type FehlstundenChange = {
   newValue: number
 }
 
+type LernbereichNoteChange = {
+  schuelerId: number
+  field: 'lernbereich1note' | 'lernbereich2note'
+  originalValue: Notenkuerzel | null
+  newValue: Notenkuerzel | null
+}
+
 type FachbezogeneFehlstundenChange = {
   schuelerId: number
   lerngruppeId: number
@@ -231,6 +238,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const fachbezogeneBemerkungChanges = ref<Map<string, string | null>>(new Map())
   const fehlstundenChanges = ref<Map<string, number>>(new Map())
   const fachbezogeneFehlstundenChanges = ref<Map<string, number>>(new Map())
+  const lernbereichNoteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const teilleistungNoteChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const noteQuartalChanges = ref<Map<string, Notenkuerzel | null>>(new Map())
   const dataSource = ref<DataSource>(null)
@@ -398,12 +406,14 @@ export const useConferenceStore = defineStore('conference', () => {
   const fehlstundenChangeCount = computed(() => fehlstundenChanges.value.size)
   const hasFachbezogeneFehlstundenChanges = computed(() => fachbezogeneFehlstundenChanges.value.size > 0)
   const fachbezogeneFehlstundenChangeCount = computed(() => fachbezogeneFehlstundenChanges.value.size)
+  const hasLernbereichNoteChanges = computed(() => lernbereichNoteChanges.value.size > 0)
+  const lernbereichNoteChangeCount = computed(() => lernbereichNoteChanges.value.size)
   const hasTeilleistungNoteChanges = computed(() => teilleistungNoteChanges.value.size > 0)
   const teilleistungNoteChangeCount = computed(() => teilleistungNoteChanges.value.size)
   const hasNoteQuartalChanges = computed(() => noteQuartalChanges.value.size > 0)
   const noteQuartalChangeCount = computed(() => noteQuartalChanges.value.size)
-  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0 || fachbezogeneFehlstundenChanges.value.size > 0 || teilleistungNoteChanges.value.size > 0 || noteQuartalChanges.value.size > 0)
-  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size + fachbezogeneFehlstundenChanges.value.size + teilleistungNoteChanges.value.size + noteQuartalChanges.value.size)
+  const hasAnyChanges = computed(() => noteChanges.value.size > 0 || bemerkungChanges.value.size > 0 || fachbezogeneBemerkungChanges.value.size > 0 || fehlstundenChanges.value.size > 0 || fachbezogeneFehlstundenChanges.value.size > 0 || lernbereichNoteChanges.value.size > 0 || teilleistungNoteChanges.value.size > 0 || noteQuartalChanges.value.size > 0)
+  const totalChangeCount = computed(() => noteChanges.value.size + bemerkungChanges.value.size + fachbezogeneBemerkungChanges.value.size + fehlstundenChanges.value.size + fachbezogeneFehlstundenChanges.value.size + lernbereichNoteChanges.value.size + teilleistungNoteChanges.value.size + noteQuartalChanges.value.size)
 
   function getChangeKey(schuelerId: number, lerngruppeId: number): string {
     return `${schuelerId}:${lerngruppeId}`
@@ -515,6 +525,7 @@ export const useConferenceStore = defineStore('conference', () => {
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
     fachbezogeneFehlstundenChanges.value.clear()
+    lernbereichNoteChanges.value.clear()
     teilleistungNoteChanges.value.clear()
   }
 
@@ -593,6 +604,12 @@ export const useConferenceStore = defineStore('conference', () => {
       } else {
         leistung.tsFehlstundenUnentschuldigtFach = tsNow
       }
+    }
+
+    for (const change of listLernbereichNoteChanges()) {
+      const schueler = patched.schueler.find(s => s.id === change.schuelerId)
+      if (!schueler) continue
+      schueler.lernabschnitt[change.field] = change.newValue
     }
 
     for (const change of listTeilleistungNoteChanges()) {
@@ -991,6 +1008,60 @@ export const useConferenceStore = defineStore('conference', () => {
     return changes
   }
 
+  // ---------------------------------------------------------------------------
+  // Lernbereichsnoten (schulformabhängig, siehe src/utils/lernbereichsnoten.ts)
+  // ---------------------------------------------------------------------------
+
+  function getLernbereichNoteChangeKey(schuelerId: number, field: 'lernbereich1note' | 'lernbereich2note'): string {
+    return `${schuelerId}:${field}`
+  }
+
+  function getOriginalLernbereichNoteValue(schuelerId: number, field: 'lernbereich1note' | 'lernbereich2note'): Notenkuerzel | null {
+    const schueler = enmExport.value?.schueler.find(s => s.id === schuelerId)
+    if (!schueler) return null
+    return schueler.lernabschnitt[field] ?? null
+  }
+
+  function getLernbereichNoteValue(schuelerId: number, field: 'lernbereich1note' | 'lernbereich2note'): Notenkuerzel | null {
+    const key = getLernbereichNoteChangeKey(schuelerId, field)
+    if (lernbereichNoteChanges.value.has(key)) {
+      return lernbereichNoteChanges.value.get(key) ?? null
+    }
+    return getOriginalLernbereichNoteValue(schuelerId, field)
+  }
+
+  function updateLernbereichNoteValue(schuelerId: number, field: 'lernbereich1note' | 'lernbereich2note', value: Notenkuerzel | null): void {
+    const key = getLernbereichNoteChangeKey(schuelerId, field)
+    const original = getOriginalLernbereichNoteValue(schuelerId, field)
+
+    if (original === value) {
+      lernbereichNoteChanges.value.delete(key)
+      return
+    }
+
+    lernbereichNoteChanges.value.set(key, value)
+  }
+
+  function isLernbereichNoteChanged(schuelerId: number, field: 'lernbereich1note' | 'lernbereich2note'): boolean {
+    return lernbereichNoteChanges.value.has(getLernbereichNoteChangeKey(schuelerId, field))
+  }
+
+  function listLernbereichNoteChanges(): LernbereichNoteChange[] {
+    const changes: LernbereichNoteChange[] = []
+    for (const [key, newValue] of lernbereichNoteChanges.value) {
+      const [schueler, field] = key.split(':')
+      const schuelerId = Number(schueler)
+      const typedField = field as 'lernbereich1note' | 'lernbereich2note'
+      changes.push({
+        schuelerId,
+        field: typedField,
+        originalValue: getOriginalLernbereichNoteValue(schuelerId, typedField),
+        newValue,
+      })
+    }
+    return changes
+  }
+
   function listTeilleistungNoteChanges(): TeilleistungNoteChange[] {
     const changes: TeilleistungNoteChange[] = []
     for (const [key, newValue] of teilleistungNoteChanges.value) {
@@ -1028,6 +1099,7 @@ export const useConferenceStore = defineStore('conference', () => {
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       fachbezogeneFehlstundenChanges.value.clear()
+      lernbereichNoteChanges.value.clear()
       teilleistungNoteChanges.value.clear()
       dataSource.value = 'file'
       lastServerConnection.value = null
@@ -1125,6 +1197,7 @@ export const useConferenceStore = defineStore('conference', () => {
       fachbezogeneBemerkungChanges.value.clear()
       fehlstundenChanges.value.clear()
       fachbezogeneFehlstundenChanges.value.clear()
+      lernbereichNoteChanges.value.clear()
       teilleistungNoteChanges.value.clear()
       dataSource.value = 'server'
       lastServerConnection.value = {
@@ -1170,6 +1243,7 @@ export const useConferenceStore = defineStore('conference', () => {
     fachbezogeneBemerkungChanges.value.clear()
     fehlstundenChanges.value.clear()
     fachbezogeneFehlstundenChanges.value.clear()
+    lernbereichNoteChanges.value.clear()
     teilleistungNoteChanges.value.clear()
     dataSource.value = null
     lastServerConnection.value = null
@@ -1247,6 +1321,13 @@ export const useConferenceStore = defineStore('conference', () => {
     updateFachbezogeneFehlstundenValue,
     isFachbezogeneFehlstundenChanged,
     listFachbezogeneFehlstundenChanges,
+    // Lernbereichsnoten
+    hasLernbereichNoteChanges,
+    lernbereichNoteChangeCount,
+    getLernbereichNoteValue,
+    updateLernbereichNoteValue,
+    isLernbereichNoteChanged,
+    listLernbereichNoteChanges,
     // Teilleistungen
     hasTeilleistungNoteChanges,
     teilleistungNoteChangeCount,

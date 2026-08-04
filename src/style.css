@@ -1450,11 +1450,32 @@ td.changed {
   border-right: none;
 }
 
+.lupe-stat-box-compact {
+  flex: 0 1 100px;
+  min-width: 100px;
+}
+
+.lupe-stat-box-bewertet {
+  flex: 0 1 130px;
+  min-width: 130px;
+}
+
+.lupe-stat-box-lbn {
+  flex: 0 1 140px;
+  min-width: 140px;
+}
+
+.lupe-stat-box-fehlstunden {
+  flex: 0 1 140px;
+  min-width: 140px;
+}
+
 .lupe-stat-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--conf-ink-soft);
   margin-bottom: 4px;
+  overflow-wrap: break-word;
 }
 
 .lupe-stat-val {
@@ -1913,6 +1934,26 @@ td.changed {
   box-shadow: 0 0 0 2px var(--conf-focus-ring);
 }
 
+.lupe-stat-select {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  text-align-last: center;
+  border: 1px solid var(--conf-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  width: 100%;
+  font-family: inherit;
+  color: var(--conf-ink);
+  background: var(--conf-surface);
+}
+
+.lupe-stat-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--conf-focus-ring);
+}
+
 .lupe-remark-textarea {
   width: 100%;
   font-family: inherit;
@@ -2128,6 +2169,22 @@ td.changed {
 
   .lupe-stat-box {
     min-width: 150px;
+  }
+
+  .lupe-stat-box-compact {
+    min-width: 90px;
+  }
+
+  .lupe-stat-box-bewertet {
+    min-width: 120px;
+  }
+
+  .lupe-stat-box-lbn {
+    min-width: 130px;
+  }
+
+  .lupe-stat-box-fehlstunden {
+    min-width: 130px;
   }
 
   .lupe-remarks-wrap {

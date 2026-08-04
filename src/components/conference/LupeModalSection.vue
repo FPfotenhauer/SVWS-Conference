@@ -23,6 +23,7 @@ export default defineComponent({
     relevantSubjectCount: { type: Number, required: true },
     fehlstundenGesamt: { type: Number as PropType<number | undefined>, required: false, default: undefined },
     fehlstundenUnentschuldigt: { type: Number as PropType<number | undefined>, required: false, default: undefined },
+    lernbereichsnoten: { type: Array as PropType<Array<{ feld: 'lernbereich1note' | 'lernbereich2note', label: string, value: Notenkuerzel | null, changed: boolean }>>, required: false, default: () => [] },
     lupeSubjects: { type: Array as PropType<any[]>, required: true },
     lupeCards: { type: Array as PropType<any[]>, required: true },
     lupeTableMinWidth: { type: Number, required: true },
@@ -177,10 +178,30 @@ export default defineComponent({
             ]),
           ]),
           h('div', { class: 'lupe-stats-row' }, [
-            h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, props.avg)]),
-            h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${props.gradedCount} / ${props.relevantSubjectCount}`)]),
+            h('div', { class: 'lupe-stat-box lupe-stat-box-compact' }, [h('div', { class: 'lupe-stat-label' }, 'Ø Note'), h('div', { class: 'lupe-stat-val' }, props.avg)]),
+            h('div', { class: 'lupe-stat-box lupe-stat-box-bewertet' }, [h('div', { class: 'lupe-stat-label' }, 'Bewertet'), h('div', { class: 'lupe-stat-val' }, `${props.gradedCount} / ${props.relevantSubjectCount}`)]),
+            ...props.lernbereichsnoten.map(lernbereich =>
+              props.selectedSchueler
+                ? h('div', { class: 'lupe-stat-box lupe-stat-editable lupe-stat-box-lbn' }, [
+                  h('div', { class: 'lupe-stat-label' }, lernbereich.label),
+                  h('select', {
+                    class: 'lupe-stat-select',
+                    value: lernbereich.value ?? '',
+                    onChange: (event: Event) => {
+                      const newNote = (event.target as HTMLSelectElement).value as Notenkuerzel | ''
+                      props.store.updateLernbereichNoteValue(props.selectedSchueler.schueler.id, lernbereich.feld, newNote || null)
+                    },
+                  }, [
+                    h('option', { value: '' }, '–'),
+                    ...props.notenOptions
+                      .filter((n: EnmNote) => ['1', '2', '3', '4', '5', '6'].includes(n.kuerzel))
+                      .map((n: EnmNote) => h('option', { value: n.kuerzel }, props.getNoteDisplay(n.kuerzel))),
+                  ]),
+                ])
+                : h('div', { class: 'lupe-stat-box lupe-stat-box-lbn' }, [h('div', { class: 'lupe-stat-label' }, lernbereich.label), h('div', { class: 'lupe-stat-val' }, '–')])
+            ),
             props.selectedSchueler
-              ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+              ? h('div', { class: 'lupe-stat-box lupe-stat-editable lupe-stat-box-fehlstunden' }, [
                 h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'),
                 h('input', {
                   type: 'number',
@@ -197,9 +218,9 @@ export default defineComponent({
                   },
                 }),
               ])
-              : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, '–')]),
+              : h('div', { class: 'lupe-stat-box lupe-stat-box-fehlstunden' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden gesamt'), h('div', { class: 'lupe-stat-val' }, '–')]),
             props.selectedSchueler
-              ? h('div', { class: 'lupe-stat-box lupe-stat-editable' }, [
+              ? h('div', { class: 'lupe-stat-box lupe-stat-editable lupe-stat-box-fehlstunden' }, [
                 h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'),
                 h('input', {
                   type: 'number',
@@ -218,7 +239,7 @@ export default defineComponent({
                   },
                 }),
               ])
-              : h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
+              : h('div', { class: 'lupe-stat-box lupe-stat-box-fehlstunden' }, [h('div', { class: 'lupe-stat-label' }, 'Fehlstunden unentsch.'), h('div', { class: 'lupe-stat-val' }, '–')]),
             h('div', { class: 'lupe-stat-box' }, [h('div', { class: 'lupe-stat-label' }, 'Geaendert'), h('div', { class: 'lupe-stat-val' }, String(props.store.totalChangeCount))]),
           ]),
           h('div', { class: props.lupeViewMode === 'tabelle' ? 'lupe-grid-wrap lupe-grid-wrap-table' : 'lupe-grid-wrap' }, [

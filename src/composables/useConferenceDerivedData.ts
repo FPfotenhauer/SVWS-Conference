@@ -1,4 +1,5 @@
 import type { Notenkuerzel } from '../types/enm'
+import { getLernbereichsnotenFelder } from '../utils/lernbereichsnoten'
 
 type LupeTone = (note: Notenkuerzel | null) => { frame: string, note: string, label: string, text: string }
 type NumericGrade = (note: Notenkuerzel | null) => number | null
@@ -122,6 +123,18 @@ export function buildConferenceDerivedData(params: {
     ? store.getFehlstundenValue(selectedSchueler.schueler.id, 'fehlstundenGesamtUnentschuldigt')
     : undefined
 
+  const selectedSchuelerJahrgangKuerzel = selectedSchueler
+    ? store.enmExport?.jahrgaenge.find((j: any) => j.id === selectedSchueler.schueler.jahrgangID)?.kuerzel ?? null
+    : null
+
+  const lernbereichsnoten = selectedSchueler
+    ? getLernbereichsnotenFelder(store.enmExport?.schulform, selectedSchuelerJahrgangKuerzel).map(def => ({
+      ...def,
+      value: store.getLernbereichNoteValue(selectedSchueler.schueler.id, def.feld),
+      changed: store.isLernbereichNoteChanged(selectedSchueler.schueler.id, def.feld),
+    }))
+    : []
+
   const lehrerKuerzelById = new Map<number, string>((store.enmExport?.lehrer ?? []).map((item: any) => [item.id, item.kuerzel]))
   const klasseLerngruppeById = new Map<number, any>((klasse?.lerngruppen ?? []).map((item: any) => [item.id, item]))
 
@@ -184,6 +197,7 @@ export function buildConferenceDerivedData(params: {
     relevantSubjectCount,
     fehlstundenGesamt,
     fehlstundenUnentschuldigt,
+    lernbereichsnoten,
     lupeSubjects,
     timerLabel,
     showTimerChip,
